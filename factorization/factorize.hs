@@ -19,7 +19,7 @@ print_factorize_list l = do
 
 -- For multi threading with 8 threads, we need to
 -- split up the infinite list into 8 infinite lists...
---
+
 -- For 2 threads, the infinite lists could be defined as follows:
 -- [1,3..]
 -- [2,4..]
