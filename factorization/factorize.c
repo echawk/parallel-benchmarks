@@ -3,11 +3,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define CPUS 4
+#ifndef CPUS
+#define CPUS 1
+#endif
 
 /*
    To compile:
-   cc -lpthread factorize.c
+   cc -DCPUS=<num_cpu> -lpthread factorize.c
 */
 
 void factorize(int n) {
