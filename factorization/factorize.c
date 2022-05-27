@@ -10,6 +10,9 @@
 /*
    To compile:
    cc -DCPUS=<num_cpu> -lpthread factorize.c
+
+   Or run directly with tcc:
+   tcc -DCPUS=<num_cpu> -lpthread -run factorize.c
 */
 
 void factorize(int n) {
