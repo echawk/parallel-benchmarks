@@ -1,0 +1,153 @@
+#include <pthread.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include <SDL2/SDL.h>
+
+#ifndef CPUS
+#define CPUS 1
+#endif
+
+/*
+  How to compile:
+
+  $ gcc -DCPUS=<num_cpus> -lSDL2 -lpthread mandel.c -o mandel
+
+ */
+
+struct rgb {
+  int r, g, b;
+};
+typedef struct rgb rgb_T;
+
+struct pixel {
+  int x, y;
+  rgb_T color;
+};
+typedef struct pixel pixel_T;
+
+void print_pixel_T(pixel_T *px) {
+  printf("(%d, %d) - R%d G%d B%d\n", px->x, px->y, px->color.r, px->color.g,
+         px->color.b);
+}
+
+rgb_T rand_rgb() {
+  int r = rand() % 255;
+  int g = rand() % 255;
+  int b = rand() % 255;
+  return (rgb_T){.r = r, .g = g, .b = b};
+}
+
+int W_WIDTH;
+int W_HEIGHT;
+void *window;
+void *renderer;
+pthread_mutex_t mutex;
+
+rgb_T color = {.r = 100, .g = 0, .b = 0};
+
+/*
+  FIXME: come up with an easy way to cacluate the mandelbrot pixels as well,
+  since the current pixels are for the window. Each pixel on the window is going
+  to have a relationship with the 'pixels' of the mandelbrot image.
+
+  Bascially the main window will be a magnifing window of the mandelbrot set and
+  it will serve to just show the information. However there the color at a
+  particular pixel will instead be based off of the actual coordinates of
+  wherever we are in the mandelbrot image.
+ */
+
+/*
+  Current plan for multi threading is to have 'workers' that each are
+  responsible for rendering specific pixels/areas. When done with their
+  work, they'll signal to the main thread that they are done. The main
+  thread waits to receive all of the 'dones' from the worker threads, and
+  once all work is done, the main thread presents the now rendered image.
+
+  pthreads will be responsible for perfomring the operations associated with
+  each. Each thread will know what 'CPU' it is, and thus know exactly which
+  pixels it will need to render soley from that information.
+ */
+void cpu_n_render_pixels(int cpu_n) {
+  /*
+    FIXME: With 3 CPUS Black bars appear - I don't know why but it doesn't
+   happen when the number of CPUs is 1 or 2.
+  */
+
+  for (int i = cpu_n; i <= W_WIDTH; i += CPUS) {
+    for (int j = 0; j <= W_HEIGHT; j++) {
+      //((pixel_T){.x = i, .y = j, .color = red});
+      pthread_mutex_lock(&mutex);
+      SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
+      SDL_RenderDrawPoint(renderer, i, j);
+      pthread_mutex_unlock(&mutex);
+    }
+  }
+}
+
+void *thread_render(void *arg) {
+  int *v = (int *)arg;
+  cpu_n_render_pixels(*v);
+  return NULL;
+}
+
+int main() {
+  srand(0);
+  /*
+    Set our initial window width and height to be 800 x 600 - will be
+    adjusted.
+
+    Automatically scale the window width so that the number of CPUS will
+    always cleanly divide.
+   */
+
+  W_WIDTH = 800 - (800 % CPUS);
+  W_HEIGHT = 600;
+  SDL_Init(32);
+  window = SDL_CreateWindow("MandelBrot - C", 0, 0, W_WIDTH, W_HEIGHT, 0);
+  renderer = SDL_CreateRenderer(window, -1, 0);
+
+  SDL_RenderClear(renderer);
+  SDL_RenderPresent(renderer);
+
+  /*
+
+    The picture is effecively divided up into 'columns' -
+
+                  WIDTH
+
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!  HEIGHT
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+
+
+    Each thread gets its own 'column'.
+
+   */
+
+  pthread_t pids[CPUS];
+  for (int z = 0; z < 10; z++) {
+    for (int i = 0; i < CPUS; i++) {
+      pthread_create(&pids[i], NULL, thread_render, (void *)&i);
+    }
+    for (int i = 0; i < CPUS; i++) {
+      pthread_join(pids[i], NULL);
+    }
+    SDL_RenderPresent(renderer);
+    sleep(1);
+    color = rand_rgb();
+  }
+
+  SDL_DestroyRenderer(renderer);
+  SDL_DestroyWindow(window);
+  SDL_Quit();
+
+  return 0;
+}
