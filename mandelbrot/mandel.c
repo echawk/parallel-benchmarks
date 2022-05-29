@@ -84,7 +84,7 @@ rgb_T iter_to_rgb(int iter) {
     /* Green Dominated*/
     percentile = (float)iter / MANDEL_ITER;
     int max_mag = (int)255 * percentile + 50;
-    return (rgb_T){.r = max_mag, .g = .5 * max_mag, .b = .33 * max_mag};
+    return (rgb_T){.r = .5 * max_mag, .g = max_mag, .b = .33 * max_mag};
   }
 }
 
@@ -250,6 +250,8 @@ int main() {
     next one?
 
     * Allow for zooming out
+
+    * Work on coloring algorithm
    */
 
   W_WIDTH = 800 - (800 % CPUS);
