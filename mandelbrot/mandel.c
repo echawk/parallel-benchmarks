@@ -1,3 +1,4 @@
+#include <complex.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -11,7 +12,7 @@
 /*
   How to compile:
 
-  $ gcc -DCPUS=<num_cpus> -lSDL2 -lpthread mandel.c -o mandel
+  $ gcc -Wall -std=c99 -DCPUS=<num_cpus> -lSDL2 -lpthread mandel.c -o mandel
 
  */
 
@@ -57,6 +58,39 @@ rgb_T color = {.r = 100, .g = 0, .b = 0};
   wherever we are in the mandelbrot image.
  */
 
+float MANDEL_Y_MIN = -1.0;
+float MANDEL_Y_MAX = 1.0;
+float MANDEL_X_MIN = -2.0;
+float MANDEL_X_MAX = 2.0;
+
+#define MANDEL_ITER 80
+
+rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
+  float y = ((float)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
+            MANDEL_Y_MIN;
+  float x = ((float)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
+            MANDEL_X_MIN;
+  float x0 = x;
+  float y0 = y;
+  for (int i = 0; i < MANDEL_ITER; i++) {
+    float x1 = (x0 * x0) - (y0 * y0);
+    float y1 = 2 * x0 * y0;
+
+    x1 = x1 + (float)x;
+    y1 = y1 + (float)y;
+
+    x0 = x1;
+    y0 = y1;
+
+    float d = (x0 * x0) + (y0 * y0);
+    if (d > 4) {
+      int magnitude = (10 * i / 8);
+      return (rgb_T){.r = magnitude, .g = magnitude, .b = magnitude};
+    }
+  }
+  return (rgb_T){.r = 0, .g = 0, .b = 0};
+}
+
 /*
   Current plan for multi threading is to have 'workers' that each are
   responsible for rendering specific pixels/areas. When done with their
@@ -74,11 +108,13 @@ void cpu_n_render_pixels(int cpu_n) {
    happen when the number of CPUs is 1 or 2.
   */
 
+  rgb_T px_col;
   for (int i = cpu_n; i <= W_WIDTH; i += CPUS) {
     for (int j = 0; j <= W_HEIGHT; j++) {
       //((pixel_T){.x = i, .y = j, .color = red});
+      px_col = window_x_y_to_color(i, j);
       pthread_mutex_lock(&mutex);
-      SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
+      SDL_SetRenderDrawColor(renderer, px_col.r, px_col.g, px_col.b, 255);
       SDL_RenderDrawPoint(renderer, i, j);
       pthread_mutex_unlock(&mutex);
     }
