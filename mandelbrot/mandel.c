@@ -6,17 +6,23 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_error.h>
+#include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_render.h>
 
 #ifndef CPUS
-#define CPUS 1
+#define CPUS 4
 #endif
 
 /*
   How to compile:
 
-  $ gcc -Wall -std=c99 -DCPUS=<num_cpus> -lSDL2 -lpthread mandel.c -o mandel
+  gcc -Wall -std=c99 -lSDL2 -lpthread mandel.c -o mandel
 
+  Optionally, you can specify the following too:
+  -DMANDEL_ITER=<num>
+    ~ controls the number of iterations to perform for each mandelbrot pixel.
+  -DCPUS=<num_cpus>
+    ~ controls the number of threads that are spun up for rendering.
  */
 
 struct rgb {
@@ -24,20 +30,12 @@ struct rgb {
 };
 typedef struct rgb rgb_T;
 
-rgb_T rand_rgb() {
-  int r = rand() % 255;
-  int g = rand() % 255;
-  int b = rand() % 255;
-  return (rgb_T){.r = r, .g = g, .b = b};
-}
-
 int W_WIDTH;
 int W_HEIGHT;
 void *window;
 void *renderer;
-pthread_mutex_t mutex;
-
-rgb_T color = {.r = 100, .g = 0, .b = 0};
+pthread_mutex_t renderer_mutex;
+pthread_mutex_t show_mutex;
 
 /*
   FIXME: come up with an easy way to cacluate the mandelbrot pixels as well,
@@ -91,6 +89,9 @@ rgb_T iter_to_rgb(int iter) {
 }
 
 rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
+  /*
+    This is the actual mandelbrot algorithm.
+   */
   float y = ((float)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
             MANDEL_Y_MIN;
   float x = ((float)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
@@ -141,10 +142,10 @@ void cpu_n_render_pixels(int cpu_n) {
         turn around time compared to pthreads.
         To create mutexes in sdl2 you use this - SDL_CreateMutex();
        */
-      pthread_mutex_lock(&mutex);
+      pthread_mutex_lock(&renderer_mutex);
       SDL_SetRenderDrawColor(renderer, px_col.r, px_col.g, px_col.b, 255);
       SDL_RenderDrawPoint(renderer, i, j);
-      pthread_mutex_unlock(&mutex);
+      pthread_mutex_unlock(&renderer_mutex);
     }
   }
 }
@@ -155,41 +156,8 @@ void *thread_render(void *arg) {
   return NULL;
 }
 
-int main() {
-  srand(0);
+void render_mandelbrot() {
   /*
-    Set our initial window width and height to be 800 x 600 - will be
-    adjusted.
-
-    Automatically scale the window width so that the number of CPUS will
-    always cleanly divide.
-   */
-
-  W_WIDTH = 800 - (800 % CPUS);
-  W_HEIGHT = 600;
-  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-    fprintf(stderr, "[ERR] Could not initialize sdl2: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-  window = SDL_CreateWindow("MandelBrot - C", 0, 0, W_WIDTH, W_HEIGHT,
-                            SDL_WINDOW_SHOWN);
-  if (window == NULL) {
-    fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-  renderer = SDL_CreateRenderer(
-      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-  if (renderer == NULL) {
-    SDL_DestroyWindow(window);
-    fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-
-  SDL_RenderClear(renderer);
-  SDL_RenderPresent(renderer);
-
-  /*
-
     The picture is effecively divided up into 'columns' -
 
                   WIDTH
@@ -207,20 +175,107 @@ int main() {
 
 
     Each thread gets its own 'column'.
+   */
+  // I don't know if this does what I think it does
+  pthread_mutex_lock(&show_mutex);
+  pthread_t pids[CPUS];
+  for (int i = 0; i < CPUS; i++) {
+    pthread_create(&pids[i], NULL, thread_render, (void *)&i);
+  }
+  for (int i = 0; i < CPUS; i++) {
+    pthread_join(pids[i], NULL);
+  }
+  pthread_mutex_unlock(&show_mutex);
+}
 
+void show_mandelbrot() {
+  pthread_mutex_lock(&show_mutex);
+  SDL_RenderPresent(renderer);
+  pthread_mutex_unlock(&show_mutex);
+}
+
+int init_sdl() {
+  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    fprintf(stderr, "[ERR] Could not initialize sdl2: %s\n", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+  window = SDL_CreateWindow("MandelBrot - C", 0, 0, W_WIDTH, W_HEIGHT,
+                            SDL_WINDOW_SHOWN);
+  if (window == NULL) {
+    fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+  renderer = SDL_CreateRenderer(
+      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (renderer == NULL) {
+    SDL_DestroyWindow(window);
+    fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+void zoom_on_point(float xp, float yp) {
+  float x_range = MANDEL_X_MAX - MANDEL_X_MIN;
+  float y_range = MANDEL_Y_MAX - MANDEL_Y_MIN;
+  float new_x_range = x_range * .8;
+  float new_y_range = y_range * .8;
+  float cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
+  float cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
+
+  MANDEL_X_MAX = cx + (.5 * new_x_range);
+  MANDEL_X_MIN = cx - (.5 * new_x_range);
+
+  MANDEL_Y_MAX = cy + (.5 * new_y_range);
+  MANDEL_Y_MIN = cy - (.5 * new_y_range);
+}
+
+int main() {
+  /*
+    Set our initial window width and height to be 800 x 600 - will be
+    adjusted.
+
+    Automatically scale the window width so that the number of CPUS will
+    always cleanly divide.
    */
 
-  pthread_t pids[CPUS];
-  for (int z = 0; z < 10; z++) {
-    for (int i = 0; i < CPUS; i++) {
-      pthread_create(&pids[i], NULL, thread_render, (void *)&i);
+  /*
+    TODO:
+    * Look into double buffering?
+    https://stackoverflow.com/questions/28334892/sdl2-double-buffer-not-working-still-tearing
+
+    - Is it possible to have two 'images' that we can render to? So that way we
+    can smoothly zoom in. So we can have the show_mandelbrot function always
+    show the 'ready' buffer while 'render_mandelbrot' can always work on the
+    next one?
+
+    * Allow for zooming out
+   */
+
+  W_WIDTH = 800 - (800 % CPUS);
+  W_HEIGHT = 600;
+
+  if (init_sdl() == EXIT_FAILURE)
+    return EXIT_FAILURE;
+
+  SDL_RenderClear(renderer);
+  SDL_RenderPresent(renderer);
+
+  SDL_Event e;
+  bool should_exit = false;
+  while (!should_exit) {
+    while (SDL_PollEvent(&e)) {
+      switch (e.type) {
+      case SDL_QUIT:
+        should_exit = true;
+        break;
+      case SDL_MOUSEBUTTONDOWN:
+        zoom_on_point((float)e.button.x / W_WIDTH,
+                      (float)e.button.y / W_HEIGHT);
+      }
     }
-    for (int i = 0; i < CPUS; i++) {
-      pthread_join(pids[i], NULL);
-    }
-    SDL_RenderPresent(renderer);
-    sleep(1);
-    color = rand_rgb();
+    render_mandelbrot();
+    show_mandelbrot();
   }
 
   SDL_DestroyRenderer(renderer);
