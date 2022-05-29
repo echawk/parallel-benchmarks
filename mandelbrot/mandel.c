@@ -63,7 +63,9 @@ float MANDEL_Y_MAX = 1.0;
 float MANDEL_X_MIN = -2.0;
 float MANDEL_X_MAX = 2.0;
 
+#ifndef MANDEL_ITER
 #define MANDEL_ITER 80
+#endif
 
 rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
   float y = ((float)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
