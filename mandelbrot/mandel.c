@@ -6,6 +6,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_error.h>
+#include <SDL2/SDL_events.h>
 #include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_render.h>
 
@@ -230,6 +231,52 @@ void zoom_on_point(float xp, float yp) {
   MANDEL_Y_MIN = cy - (.5 * new_y_range);
 }
 
+enum { UP, DOWN, LEFT, RIGHT };
+
+void pan(int dir) {
+  int pixel_size = 10;
+  float y_delta =
+      ((float)pixel_size / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN);
+  float x_delta = ((float)pixel_size / W_WIDTH) * (MANDEL_X_MAX - MANDEL_X_MIN);
+  switch (dir) {
+  case UP:
+    MANDEL_Y_MAX -= y_delta;
+    MANDEL_Y_MIN -= y_delta;
+    break;
+  case DOWN:
+    MANDEL_Y_MAX += y_delta;
+    MANDEL_Y_MIN += y_delta;
+    break;
+  case LEFT:
+    MANDEL_X_MAX -= x_delta;
+    MANDEL_X_MIN -= x_delta;
+    break;
+  case RIGHT:
+    MANDEL_X_MAX += x_delta;
+    MANDEL_X_MIN += x_delta;
+    break;
+  default:
+    return;
+  }
+}
+
+void handle_key(SDL_Event e) {
+  switch (e.key.keysym.sym) {
+  case SDLK_LEFT:
+    pan(LEFT);
+    break;
+  case SDLK_RIGHT:
+    pan(RIGHT);
+    break;
+  case SDLK_UP:
+    pan(UP);
+    break;
+  case SDLK_DOWN:
+    pan(DOWN);
+    break;
+  }
+}
+
 int main() {
   /*
     Set our initial window width and height to be 800 x 600 - will be
@@ -244,10 +291,10 @@ int main() {
     * Look into double buffering?
     https://stackoverflow.com/questions/28334892/sdl2-double-buffer-not-working-still-tearing
 
-    - Is it possible to have two 'images' that we can render to? So that way we
-    can smoothly zoom in. So we can have the show_mandelbrot function always
-    show the 'ready' buffer while 'render_mandelbrot' can always work on the
-    next one?
+    - Is it possible to have two 'images' that we can render to? So that way
+    we can smoothly zoom in. So we can have the show_mandelbrot function
+    always show the 'ready' buffer while 'render_mandelbrot' can always work
+    on the next one?
 
     * Allow for zooming out
 
@@ -274,6 +321,10 @@ int main() {
       case SDL_MOUSEBUTTONDOWN:
         zoom_on_point((float)e.button.x / W_WIDTH,
                       (float)e.button.y / W_HEIGHT);
+        break;
+      case SDL_KEYDOWN:
+        handle_key(e);
+        break;
       }
     }
     render_mandelbrot();
