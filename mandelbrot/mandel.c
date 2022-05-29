@@ -1,10 +1,12 @@
-#include <complex.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_error.h>
+#include <SDL2/SDL_render.h>
 
 #ifndef CPUS
 #define CPUS 1
@@ -21,17 +23,6 @@ struct rgb {
   int r, g, b;
 };
 typedef struct rgb rgb_T;
-
-struct pixel {
-  int x, y;
-  rgb_T color;
-};
-typedef struct pixel pixel_T;
-
-void print_pixel_T(pixel_T *px) {
-  printf("(%d, %d) - R%d G%d B%d\n", px->x, px->y, px->color.r, px->color.g,
-         px->color.b);
-}
 
 rgb_T rand_rgb() {
   int r = rand() % 255;
@@ -144,8 +135,12 @@ void cpu_n_render_pixels(int cpu_n) {
   rgb_T px_col;
   for (int i = cpu_n; i <= W_WIDTH; i += CPUS) {
     for (int j = 0; j <= W_HEIGHT; j++) {
-      //((pixel_T){.x = i, .y = j, .color = red});
       px_col = window_x_y_to_color(i, j);
+      /*
+        One thing to investigate would be if sdl2's mutexes provide a faster
+        turn around time compared to pthreads.
+        To create mutexes in sdl2 you use this - SDL_CreateMutex();
+       */
       pthread_mutex_lock(&mutex);
       SDL_SetRenderDrawColor(renderer, px_col.r, px_col.g, px_col.b, 255);
       SDL_RenderDrawPoint(renderer, i, j);
@@ -232,5 +227,5 @@ int main() {
   SDL_DestroyWindow(window);
   SDL_Quit();
 
-  return 0;
+  return EXIT_SUCCESS;
 }
