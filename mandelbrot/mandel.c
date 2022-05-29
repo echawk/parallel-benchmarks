@@ -172,9 +172,23 @@ int main() {
 
   W_WIDTH = 800 - (800 % CPUS);
   W_HEIGHT = 600;
-  SDL_Init(32);
-  window = SDL_CreateWindow("MandelBrot - C", 0, 0, W_WIDTH, W_HEIGHT, 0);
-  renderer = SDL_CreateRenderer(window, -1, 0);
+  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    fprintf(stderr, "[ERR] Could not initialize sdl2: %s\n", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+  window = SDL_CreateWindow("MandelBrot - C", 0, 0, W_WIDTH, W_HEIGHT,
+                            SDL_WINDOW_SHOWN);
+  if (window == NULL) {
+    fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
+    return EXIT_FAILURE;
+  }
+  renderer = SDL_CreateRenderer(
+      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (renderer == NULL) {
+    SDL_DestroyWindow(window);
+    fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
+    return EXIT_FAILURE;
+  }
 
   SDL_RenderClear(renderer);
   SDL_RenderPresent(renderer);
