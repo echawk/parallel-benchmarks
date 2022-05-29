@@ -1,5 +1,6 @@
 #include <complex.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -58,14 +59,45 @@ rgb_T color = {.r = 100, .g = 0, .b = 0};
   wherever we are in the mandelbrot image.
  */
 
-float MANDEL_Y_MIN = -1.0;
-float MANDEL_Y_MAX = 1.0;
+float MANDEL_Y_MIN = -1.5;
+float MANDEL_Y_MAX = 1.5;
 float MANDEL_X_MIN = -2.0;
 float MANDEL_X_MAX = 2.0;
+
+bool check_mandel_proportions() {
+  float diff_x_max_min = MANDEL_X_MAX - MANDEL_X_MIN;
+  float diff_y_max_min = MANDEL_Y_MAX - MANDEL_Y_MIN;
+  float diff_to_win_prop = (.75 - (diff_y_max_min / diff_x_max_min));
+  diff_to_win_prop =
+      diff_to_win_prop < 0 ? -diff_to_win_prop : diff_to_win_prop;
+  return diff_to_win_prop < 0.001;
+}
 
 #ifndef MANDEL_ITER
 #define MANDEL_ITER 80
 #endif
+
+rgb_T iter_to_rgb(int iter) {
+  int lowest_third = MANDEL_ITER / 3;
+  int middle_third = 2 * lowest_third;
+  float percentile;
+  if (iter < lowest_third) {
+    /* Blue Dominated*/
+    percentile = (float)iter / lowest_third;
+    int max_mag = (int)255 * percentile + 50;
+    return (rgb_T){.r = .5 * max_mag, .g = .33 * max_mag, .b = max_mag};
+  } else if (iter < middle_third) {
+    /* Red Dominated*/
+    percentile = (float)iter / middle_third;
+    int max_mag = (int)255 * percentile + 50;
+    return (rgb_T){.r = max_mag, .g = .33 * max_mag, .b = .5 * max_mag};
+  } else {
+    /* Green Dominated*/
+    percentile = (float)iter / MANDEL_ITER;
+    int max_mag = (int)255 * percentile + 50;
+    return (rgb_T){.r = max_mag, .g = .5 * max_mag, .b = .33 * max_mag};
+  }
+}
 
 rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
   float y = ((float)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
@@ -86,8 +118,7 @@ rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
 
     float d = (x0 * x0) + (y0 * y0);
     if (d > 4) {
-      int magnitude = (10 * i / 8);
-      return (rgb_T){.r = magnitude, .g = magnitude, .b = magnitude};
+      return iter_to_rgb(i);
     }
   }
   return (rgb_T){.r = 0, .g = 0, .b = 0};
