@@ -36,7 +36,6 @@ int W_HEIGHT;
 void *window;
 void *renderer;
 pthread_mutex_t renderer_mutex;
-pthread_mutex_t show_mutex;
 
 /*
   FIXME: come up with an easy way to cacluate the mandelbrot pixels as well,
@@ -178,7 +177,6 @@ void render_mandelbrot() {
     Each thread gets its own 'column'.
    */
   // I don't know if this does what I think it does
-  pthread_mutex_lock(&show_mutex);
   pthread_t pids[CPUS];
   for (int i = 0; i < CPUS; i++) {
     pthread_create(&pids[i], NULL, thread_render, (void *)&i);
@@ -186,14 +184,9 @@ void render_mandelbrot() {
   for (int i = 0; i < CPUS; i++) {
     pthread_join(pids[i], NULL);
   }
-  pthread_mutex_unlock(&show_mutex);
 }
 
-void show_mandelbrot() {
-  pthread_mutex_lock(&show_mutex);
-  SDL_RenderPresent(renderer);
-  pthread_mutex_unlock(&show_mutex);
-}
+void show_mandelbrot() { SDL_RenderPresent(renderer); }
 
 int init_sdl() {
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -217,10 +210,8 @@ int init_sdl() {
 }
 
 void zoom_on_point(double xp, double yp) {
-  double x_range = MANDEL_X_MAX - MANDEL_X_MIN;
-  double y_range = MANDEL_Y_MAX - MANDEL_Y_MIN;
-  double new_x_range = x_range * .8;
-  double new_y_range = y_range * .8;
+  double new_x_range = (MANDEL_X_MAX - MANDEL_X_MIN) * .8;
+  double new_y_range = (MANDEL_Y_MAX - MANDEL_Y_MIN) * .8;
   double cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
   double cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
 
