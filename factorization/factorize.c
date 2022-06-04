@@ -46,10 +46,7 @@ void factorize_start_from(int start, int total_cpus) {
 
 void *thread_fact(void *arg) {
   int *v = (int *)arg;
-#ifndef USE_MPI
   factorize_start_from(v[0], CPUS);
-#else
-#endif
   return NULL;
 }
 
