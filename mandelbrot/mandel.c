@@ -48,15 +48,15 @@ pthread_mutex_t renderer_mutex;
   wherever we are in the mandelbrot image.
  */
 
-double MANDEL_Y_MIN = -1.5;
-double MANDEL_Y_MAX = 1.5;
-double MANDEL_X_MIN = -2.0;
-double MANDEL_X_MAX = 2.0;
+long double MANDEL_Y_MIN = -1.5;
+long double MANDEL_Y_MAX = 1.5;
+long double MANDEL_X_MIN = -2.0;
+long double MANDEL_X_MAX = 2.0;
 
 bool check_mandel_proportions() {
-  double diff_x_max_min = MANDEL_X_MAX - MANDEL_X_MIN;
-  double diff_y_max_min = MANDEL_Y_MAX - MANDEL_Y_MIN;
-  double diff_to_win_prop = (.75 - (diff_y_max_min / diff_x_max_min));
+  long double diff_x_max_min = MANDEL_X_MAX - MANDEL_X_MIN;
+  long double diff_y_max_min = MANDEL_Y_MAX - MANDEL_Y_MIN;
+  long double diff_to_win_prop = (.75 - (diff_y_max_min / diff_x_max_min));
   diff_to_win_prop =
       diff_to_win_prop < 0 ? -diff_to_win_prop : diff_to_win_prop;
   return diff_to_win_prop < 0.001;
@@ -69,20 +69,20 @@ bool check_mandel_proportions() {
 rgb_T iter_to_rgb(int iter) {
   int lowest_third = MANDEL_ITER / 3;
   int middle_third = 2 * lowest_third;
-  double percentile;
+  long double percentile;
   if (iter < lowest_third) {
     /* Blue Dominated*/
-    percentile = (double)iter / lowest_third;
+    percentile = (long double)iter / lowest_third;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = .5 * max_mag, .g = .33 * max_mag, .b = max_mag};
   } else if (iter < middle_third) {
     /* Red Dominated*/
-    percentile = (double)iter / middle_third;
+    percentile = (long double)iter / middle_third;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = max_mag, .g = .33 * max_mag, .b = .5 * max_mag};
   } else {
     /* Green Dominated*/
-    percentile = (double)iter / MANDEL_ITER;
+    percentile = (long double)iter / MANDEL_ITER;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = .5 * max_mag, .g = max_mag, .b = .33 * max_mag};
   }
@@ -92,23 +92,23 @@ rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
   /*
     This is the actual mandelbrot algorithm.
    */
-  double y = ((double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
+  long double y = ((long double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
              MANDEL_Y_MIN;
-  double x = ((double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
+  long double x = ((long double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
              MANDEL_X_MIN;
-  double x0 = x;
-  double y0 = y;
+  long double x0 = x;
+  long double y0 = y;
   for (int i = 0; i < MANDEL_ITER; i++) {
-    double x1 = (x0 * x0) - (y0 * y0);
-    double y1 = 2 * x0 * y0;
+    long double x1 = (x0 * x0) - (y0 * y0);
+    long double y1 = 2 * x0 * y0;
 
-    x1 = x1 + (double)x;
-    y1 = y1 + (double)y;
+    x1 = x1 + (long double)x;
+    y1 = y1 + (long double)y;
 
     x0 = x1;
     y0 = y1;
 
-    double d = (x0 * x0) + (y0 * y0);
+    long double d = (x0 * x0) + (y0 * y0);
     if (d > 4) {
       return iter_to_rgb(i);
     }
@@ -209,11 +209,11 @@ int init_sdl() {
   return EXIT_SUCCESS;
 }
 
-void zoom_on_point(double xp, double yp) {
-  double new_x_range = (MANDEL_X_MAX - MANDEL_X_MIN) * .8;
-  double new_y_range = (MANDEL_Y_MAX - MANDEL_Y_MIN) * .8;
-  double cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
-  double cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
+void zoom_on_point(long double xp, long double yp) {
+  long double new_x_range = (MANDEL_X_MAX - MANDEL_X_MIN) * .8;
+  long double new_y_range = (MANDEL_Y_MAX - MANDEL_Y_MIN) * .8;
+  long double cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
+  long double cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
 
   MANDEL_X_MAX = cx + (.5 * new_x_range);
   MANDEL_X_MIN = cx - (.5 * new_x_range);
@@ -226,10 +226,10 @@ enum { UP, DOWN, LEFT, RIGHT };
 
 void pan(int dir) {
   int pixel_size = 10;
-  double y_delta =
-      ((double)pixel_size / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN);
-  double x_delta =
-      ((double)pixel_size / W_WIDTH) * (MANDEL_X_MAX - MANDEL_X_MIN);
+  long double y_delta =
+      ((long double)pixel_size / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN);
+  long double x_delta =
+      ((long double)pixel_size / W_WIDTH) * (MANDEL_X_MAX - MANDEL_X_MIN);
   switch (dir) {
   case UP:
     MANDEL_Y_MAX -= y_delta;
@@ -280,8 +280,8 @@ int main() {
 
   /*
     TODO:
-    * Look into double buffering?
-    https://stackoverflow.com/questions/28334892/sdl2-double-buffer-not-working-still-tearing
+    * Look into long double buffering?
+    https://stackoverflow.com/questions/28334892/sdl2-long double-buffer-not-working-still-tearing
 
     - Is it possible to have two 'images' that we can render to? So that way
     we can smoothly zoom in. So we can have the show_mandelbrot function
@@ -292,7 +292,7 @@ int main() {
 
     * Work on coloring algorithm
 
-    * Add optional gmp support / move to long doubles and long ints.
+    * Add optional gmp support / move to long long doubles and long ints.
    */
 
   W_WIDTH = 800 - (800 % CPUS);
@@ -313,8 +313,8 @@ int main() {
         should_exit = true;
         break;
       case SDL_MOUSEBUTTONDOWN:
-        zoom_on_point((double)e.button.x / W_WIDTH,
-                      (double)e.button.y / W_HEIGHT);
+        zoom_on_point((long double)e.button.x / W_WIDTH,
+                      (long double)e.button.y / W_HEIGHT);
         break;
       case SDL_KEYDOWN:
         handle_key(e);
