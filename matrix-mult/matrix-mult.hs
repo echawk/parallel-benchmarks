@@ -7,7 +7,7 @@ type Vector =  [Int]
 type Scalar =   Int
 
 n_in_lst :: Int -> [a] -> a
-n_in_lst n lst = head $ reverse $ take n lst
+n_in_lst n lst = last $ take n lst
 
 col_n_matrix :: Int -> Matrix -> Vector
 col_n_matrix c m = map (n_in_lst c) m
