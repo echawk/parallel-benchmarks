@@ -1,5 +1,7 @@
 --ASSUMES ALL MATRICES ARE SQUARE!
 
+-- TODO: Add in parallel computation
+
 type Matrix = [[Int]]
 type Vector =  [Int]
 type Scalar =   Int
