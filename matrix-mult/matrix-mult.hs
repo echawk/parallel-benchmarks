@@ -21,5 +21,8 @@ row_col_mult row_v col_v = sum $ map (\(a,b) -> a * b) $ zip row_v col_v
 
 matrix_mult :: Matrix -> Matrix -> Matrix
 matrix_mult m1 m2 =
-    let aux_mult = (\row_v -> map (\x -> row_col_mult row_v (col_n_matrix x m2)) [1..(length m2)]) in
-    map (\x -> aux_mult $ row_n_matrix x m1) [1..(length m1)]
+    let aux_mult =
+            (\row_v -> map (\x -> row_col_mult row_v (col_n_matrix x m2))
+                           [1..(length m2)])
+    in map (\x -> aux_mult $ row_n_matrix x m1)
+           [1..(length m1)]
