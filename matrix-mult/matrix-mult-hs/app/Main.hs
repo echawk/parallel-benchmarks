@@ -1,7 +1,5 @@
 --ASSUMES ALL MATRICES ARE SQUARE!
 
--- TODO: Add in parallel computation
-
 module Main where
 
 import Control.Parallel.Strategies
