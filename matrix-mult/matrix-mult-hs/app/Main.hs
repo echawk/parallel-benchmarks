@@ -27,9 +27,9 @@ matrix_mult :: Matrix -> Matrix -> Matrix
 matrix_mult m1 m2 =
     let aux_mult =
             (\row_v -> map (\x -> row_col_mult row_v (col_n_matrix x m2))
-                           [1..(length m2)])
+                           [1..(length m2)] `using` parList rseq)
     in map (\x -> aux_mult $ row_n_matrix x m1)
-           [1..(length m1)]
+           [1..(length m1)] `using` parList rseq
 
 main = do
     print $ matrix_mult a b
