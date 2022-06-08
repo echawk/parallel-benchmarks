@@ -31,7 +31,10 @@ matrix_mult m1 m2 =
     in map (\x -> aux_mult $ row_n_matrix x m1)
            [1..(length m1)] `using` parList rseq
 
+gen_n_square_matrix :: Int -> Matrix
+gen_n_square_matrix n = replicate n [1..n]
+
 main = do
     print $ matrix_mult a b
-    where a = replicate 100 [1..100] --[[1,2],[3,4]]
-          b = replicate 100 [1..100] --[[5,6],[7,8]]
+    where a = gen_n_square_matrix 300 --[[1,2],[3,4]]
+          b = gen_n_square_matrix 300 --[[5,6],[7,8]]
