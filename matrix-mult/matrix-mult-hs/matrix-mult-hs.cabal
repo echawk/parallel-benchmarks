@@ -10,6 +10,7 @@ maintainer:         ethan.hawk@valpo.edu
 executable matrix-mult-hs
     main-is:          Main.hs
 
+    ghc-options:      -threaded
     build-depends:    base ^>=4.16.1.0, parallel
     hs-source-dirs:   app
     default-language: Haskell2010

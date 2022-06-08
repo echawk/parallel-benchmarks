@@ -4,7 +4,7 @@
 
 module Main where
 
---import Control.Parallel.Strategies
+import Control.Parallel.Strategies
 
 type Matrix = [[Int]]
 type Vector =  [Int]
