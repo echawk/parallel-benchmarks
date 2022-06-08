@@ -33,5 +33,5 @@ matrix_mult m1 m2 =
 
 main = do
     print $ matrix_mult a b
-    where a = [[1,2],[3,4]]
-          b = [[5,6],[7,8]]
+    where a = replicate 100 [1..100] --[[1,2],[3,4]]
+          b = replicate 100 [1..100] --[[5,6],[7,8]]
