@@ -7,8 +7,8 @@ import Data.ByteString (ByteString, pack)
 
 import Graphics.Gloss
 
-windowWidth  = 800
-windowHeight = 600
+windowWidth  = 8 --00
+windowHeight = 6 --00
 windowTitle  = "MandelBrot - Haskell"
 numPixels    = windowWidth * windowHeight
 
@@ -19,7 +19,7 @@ mandelXMax   =  2.0
 mandelIters  =  80
 
 bitmapData :: ByteString
-bitmapData = pack $ concat $ map iterToColor [1..numPixels]
+bitmapData = pack $ concat $ map iterToColor [0..numPixels-1]
 
 ourPicture :: Picture
 ourPicture = bitmapOfByteString windowWidth windowHeight
@@ -48,30 +48,20 @@ iterToColor numIters =
       14 -> [153,  87,   0, 255]
       15 -> [106,  52,   3, 255]
 
---
--- windowWidth  = 6
--- windowHeight = 2
-
--- = = = = = =
--- 1 2 3 4 5 6 |
--- 7 8 9 A B C |
-
---      x y
--- 1 -> 0,0
--- 2 -> 1,0
--- 3 -> 2,0
--- 4 -> 3,0
--- ...
--- 7 -> 0,1
-
 -- Want a function that can convert a number
 -- as shown above into coordinates.
 -- FIXME
-pixelNumToMandelCoord :: Int -> Int -> (Double, Double)
-pixelNumToMandelCoord n height =
-  let y = fromIntegral $ n `div` height
-      x = fromIntegral $ n `mod` height
-   in (x, y)
+pixelNumToPixelCoord :: Int -> (Int, Int)
+pixelNumToPixelCoord n =
+    let y = n `div` windowWidth
+        x = n - (n `div` windowWidth * windowWidth)
+    in (x, y)
+
+pixelCoordToMandelCoord :: (Int, Int) -> (Double, Double)
+pixelCoordToMandelCoord (x, y) =
+    let mx = (x / (windowWidth  - 1)) * (mandelXMax - mandelXMin) + mandelXMin
+        my = (y / (windowHeight - 1)) * (mandelYMax - mandelYMin) + mandelYMin
+    in (mx, my)
 
 pixelNumToColor = 1 -- Actual mandelbrot alg.
 
