@@ -7,8 +7,8 @@ import Data.ByteString (ByteString, pack)
 
 import Graphics.Gloss
 
-windowWidth  = 8 --00
-windowHeight = 6 --00
+windowWidth  = 800
+windowHeight = 600
 windowTitle  = "MandelBrot - Haskell"
 numPixels    = windowWidth * windowHeight
 
@@ -19,7 +19,7 @@ mandelXMax   =  2.0
 mandelIters  =  80
 
 bitmapData :: ByteString
-bitmapData = pack $ concat $ map iterToColor [0..numPixels-1]
+bitmapData = pack $ concat $ map pixelNumToColor [0..numPixels-1]
 
 ourPicture :: Picture
 ourPicture = bitmapOfByteString windowWidth windowHeight
@@ -48,9 +48,6 @@ iterToColor numIters =
       14 -> [153,  87,   0, 255]
       15 -> [106,  52,   3, 255]
 
--- Want a function that can convert a number
--- as shown above into coordinates.
--- FIXME
 pixelNumToPixelCoord :: Int -> (Int, Int)
 pixelNumToPixelCoord n =
     let y = n `div` windowWidth
@@ -59,11 +56,26 @@ pixelNumToPixelCoord n =
 
 pixelCoordToMandelCoord :: (Int, Int) -> (Double, Double)
 pixelCoordToMandelCoord (x, y) =
-    let mx = (x / (windowWidth  - 1)) * (mandelXMax - mandelXMin) + mandelXMin
-        my = (y / (windowHeight - 1)) * (mandelYMax - mandelYMin) + mandelYMin
+    let mx = ((fromIntegral x) / (fromIntegral (windowWidth  - 1))) * (mandelXMax - mandelXMin) + mandelXMin
+        my = ((fromIntegral y) / (fromIntegral (windowHeight - 1))) * (mandelYMax - mandelYMin) + mandelYMin
     in (mx, my)
 
-pixelNumToColor = 1 -- Actual mandelbrot alg.
+pixelNumToColor :: Int -> [Word8]
+pixelNumToColor pixelNum =
+    let (mx, my) = pixelCoordToMandelCoord $ pixelNumToPixelCoord pixelNum
+    in iterToColor (aux mx my mandelIters 0)
+
+aux :: Double -> Double -> Int -> Int -> Int
+aux x y maxIter currIters =
+  let x' = (x * x) - (y * y) + x
+      y' = 2 * x * y         + y
+      d  = (x' * x') + (y' * y')
+   in if d > 4 then currIters
+               else
+                   if currIters == maxIter then
+                       maxIter
+                   else
+                       aux x' y' maxIter (currIters + 1)
 
 main :: IO ()
 main = display (InWindow windowTitle
