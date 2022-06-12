@@ -11,6 +11,10 @@
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_keycode.h>
 
+#define SHUTDOWN_TAG    0
+#define RENDER_TAG      1
+#define RENDER_DONE_TAG 2
+
 /*
   How to compile:
 
@@ -24,16 +28,6 @@
 
  */
 
-typedef struct {
-  uint8_t r, g, b;
-} rgb_T;
-
-int W_WIDTH;
-int W_HEIGHT;
-
-void *window;
-void *renderer;
-
 /*
   FIXME: come up with an easy way to cacluate the mandelbrot pixels as well,
   since the current pixels are for the window. Each pixel on the window is going
@@ -45,15 +39,32 @@ void *renderer;
   wherever we are in the mandelbrot image.
  */
 
-double MANDEL_Y_MIN = -1.5;
-double MANDEL_Y_MAX = 1.5;
-double MANDEL_X_MIN = -2.0;
-double MANDEL_X_MAX = 2.0;
+typedef struct {
+  uint8_t r, g, b;
+} rgb_T;
+
+typedef struct {
+  rgb_T rgb_val;
+  int x, y;
+} rgb_pixel_T;
+
+typedef struct node {
+  rgb_pixel_T pixel;
+  struct node* next;
+} node_T;
+
+int W_WIDTH;
+int W_HEIGHT;
+
+long double MANDEL_Y_MIN = -1.5;
+long double MANDEL_Y_MAX = 1.5;
+long double MANDEL_X_MIN = -2.0;
+long double MANDEL_X_MAX = 2.0;
 
 bool check_mandel_proportions() {
-  double diff_x_max_min = MANDEL_X_MAX - MANDEL_X_MIN;
-  double diff_y_max_min = MANDEL_Y_MAX - MANDEL_Y_MIN;
-  double diff_to_win_prop = (.75 - (diff_y_max_min / diff_x_max_min));
+  long double diff_x_max_min = MANDEL_X_MAX - MANDEL_X_MIN;
+  long double diff_y_max_min = MANDEL_Y_MAX - MANDEL_Y_MIN;
+  long double diff_to_win_prop = (.75 - (diff_y_max_min / diff_x_max_min));
   diff_to_win_prop =
       diff_to_win_prop < 0 ? -diff_to_win_prop : diff_to_win_prop;
   return diff_to_win_prop < 0.001;
@@ -66,46 +77,46 @@ bool check_mandel_proportions() {
 rgb_T iter_to_rgb(int iter) {
   int lowest_third = MANDEL_ITER / 3;
   int middle_third = 2 * lowest_third;
-  double percentile;
+  long double percentile;
   if (iter < lowest_third) {
     /* Blue Dominated*/
-    percentile = (double)iter / lowest_third;
+    percentile = (long double)iter / lowest_third;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = .5 * max_mag, .g = .33 * max_mag, .b = max_mag};
   } else if (iter < middle_third) {
     /* Red Dominated*/
-    percentile = (double)iter / middle_third;
+    percentile = (long double)iter / middle_third;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = max_mag, .g = .33 * max_mag, .b = .5 * max_mag};
   } else {
     /* Green Dominated*/
-    percentile = (double)iter / MANDEL_ITER;
+    percentile = (long double)iter / MANDEL_ITER;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = .5 * max_mag, .g = max_mag, .b = .33 * max_mag};
   }
 }
 
+/*
+This is the actual Mandelbrot algorithm
+*/
 rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
-  /*
-    This is the actual mandelbrot algorithm.
-   */
-  double y = ((double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
+  long double y = ((long double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
              MANDEL_Y_MIN;
-  double x = ((double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
+  long double x = ((long double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
              MANDEL_X_MIN;
-  double x0 = x;
-  double y0 = y;
+  long double x0 = x;
+  long double y0 = y;
   for (int i = 0; i < MANDEL_ITER; i++) {
-    double x1 = (x0 * x0) - (y0 * y0);
-    double y1 = 2 * x0 * y0;
+    long double x1 = (x0 * x0) - (y0 * y0);
+    long double y1 = 2 * x0 * y0;
 
-    x1 = x1 + (double)x;
-    y1 = y1 + (double)y;
+    x1 = x1 + (long double)x;
+    y1 = y1 + (long double)y;
 
     x0 = x1;
     y0 = y1;
 
-    double d = (x0 * x0) + (y0 * y0);
+    long double d = (x0 * x0) + (y0 * y0);
     if (d > 4) {
       return iter_to_rgb(i);
     }
@@ -113,80 +124,54 @@ rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
   return (rgb_T){.r = 0, .g = 0, .b = 0};
 }
 
-/*
-  Current plan for multi threading is to have 'workers' that each are
-  responsible for rendering specific pixels/areas. When done with their
-  work, they'll signal to the main thread that they are done. The main
-  thread waits to receive all of the 'dones' from the worker threads, and
-  once all work is done, the main thread presents the now rendered image.
-
-  pthreads will be responsible for perfomring the operations associated with
-  each. Each thread will know what 'CPU' it is, and thus know exactly which
-  pixels it will need to render soley from that information.
- */
-void cpu_n_render_pixels(int cpu_n, int num_cpus) {
+node_T* cpu_n_generate_pixels(int proc_num, int num_procs) {
   /*
     FIXME: With 3 CPUS Black bars appear - I don't know why but it doesn't
    happen when the number of CPUs is 1 or 2.
   */
-
-  rgb_T px_col;
-  for (int i = cpu_n; i <= W_WIDTH; i += num_cpus) {
+  node_T* head = NULL;
+  int num_elements = 0;
+  for (int i = proc_num; i <= W_WIDTH; i += num_procs) {
     for (int j = 0; j <= W_HEIGHT; j++) {
-      px_col = window_x_y_to_color(i, j);
-      /*
-        One thing to investigate would be if sdl2's mutexes provide a faster
-        turn around time compared to pthreads.
-        To create mutexes in sdl2 you use this - SDL_CreateMutex();
-       */
-      SDL_SetRenderDrawColor(renderer, px_col.r, px_col.g, px_col.b, 255);
-      SDL_RenderDrawPoint(renderer, i, j);
+      if (head == NULL) {
+        head = malloc(sizeof(node_T));
+        head->pixel.rgb_val = window_x_y_to_color(i, j);
+        head->pixel.x = i;
+        head->pixel.y = j;
+        head->next = NULL;
+        num_elements++;
+      }
+      else {
+        node_T* add = malloc(sizeof(node_T));
+        add->pixel.rgb_val = window_x_y_to_color(i, j);
+        add->pixel.x = i;
+        add->pixel.y = j;
+        add->next = head;
+        head = add;
+        num_elements++;
+      }
+      printf("Number of pixels generated by process %d: %d\n", proc_num, num_elements);
     }
   }
+
+  return head;
 }
 
-void render_mandelbrot() {
-  /*
-    The picture is effecively divided up into 'columns' -
-
-                  WIDTH
-
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!  HEIGHT
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-
-
-    Each thread gets its own 'column'.
-   */
-  // I don't know if this does what I think it does
-  int process_rank, num_processes;
-
-  MPI_Init(NULL, NULL);
-  MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
-  MPI_Comm_rank(MPI_COMM_WORLD, &process_rank);
-
-  cpu_n_render_pixels(process_rank, num_processes);
-  // for(int i = 0; i < num_processes; i++){
-  //   cpu_n_render_pixels(i);
-  // }
-  MPI_Finalize();
+void render_pixels(void* renderer, node_T* head) {
+  node_T* cursor = head;
+  if (cursor != NULL && cursor->next != NULL) {
+    SDL_SetRenderDrawColor(renderer, cursor->pixel.rgb_val.r, cursor->pixel.rgb_val.g, cursor->pixel.rgb_val.b, 255);
+    SDL_RenderDrawPoint(renderer, cursor->pixel.x, cursor->pixel.y);
+    cursor = cursor->next;
+  }
 }
 
-void show_mandelbrot() { SDL_RenderPresent(renderer); }
-
-int init_sdl() {
+int init_sdl(void* window, void* renderer){
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-    fprintf(stderr, "[ERR] Could not initialize SDL2: %s\n", SDL_GetError());
+    fprintf(stderr, "[ERR] Could not initialize sdl2: %s\n", SDL_GetError());
     return EXIT_FAILURE;
   }
-  window = SDL_CreateWindow("MPI Mandelbrot - C", 0, 0, W_WIDTH, W_HEIGHT,
+  window = SDL_CreateWindow("Mandelbrot - C", 0, 0, W_WIDTH, W_HEIGHT,
                             SDL_WINDOW_SHOWN);
   if (window == NULL) {
     fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -202,11 +187,11 @@ int init_sdl() {
   return EXIT_SUCCESS;
 }
 
-void zoom_on_point(double xp, double yp) {
-  double new_x_range = (MANDEL_X_MAX - MANDEL_X_MIN) * .8;
-  double new_y_range = (MANDEL_Y_MAX - MANDEL_Y_MIN) * .8;
-  double cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
-  double cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
+void zoom_on_point(long double xp, long double yp) {
+  long double new_x_range = (MANDEL_X_MAX - MANDEL_X_MIN) * .8;
+  long double new_y_range = (MANDEL_Y_MAX - MANDEL_Y_MIN) * .8;
+  long double cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
+  long double cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
 
   MANDEL_X_MAX = cx + (.5 * new_x_range);
   MANDEL_X_MIN = cx - (.5 * new_x_range);
@@ -215,14 +200,15 @@ void zoom_on_point(double xp, double yp) {
   MANDEL_Y_MIN = cy - (.5 * new_y_range);
 }
 
-enum dir { UP, DOWN, LEFT, RIGHT };
+
+enum { UP, DOWN, LEFT, RIGHT };
 
 void pan(int dir) {
   int pixel_size = 10;
-  double y_delta =
-      ((double)pixel_size / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN);
-  double x_delta =
-      ((double)pixel_size / W_WIDTH) * (MANDEL_X_MAX - MANDEL_X_MIN);
+  long double y_delta =
+      ((long double)pixel_size / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN);
+  long double x_delta =
+      ((long double)pixel_size / W_WIDTH) * (MANDEL_X_MAX - MANDEL_X_MIN);
   switch (dir) {
   case UP:
     MANDEL_Y_MAX -= y_delta;
@@ -273,8 +259,8 @@ int main(int argc, char** argv) {
 
   /*
     TODO:
-    * Look into double buffering?
-    https://stackoverflow.com/questions/28334892/sdl2-double-buffer-not-working-still-tearing
+    * Look into long double buffering?
+    https://stackoverflow.com/questions/28334892/sdl2-long double-buffer-not-working-still-tearing
 
     - Is it possible to have two 'images' that we can render to? So that way
     we can smoothly zoom in. So we can have the show_mandelbrot function
@@ -285,43 +271,87 @@ int main(int argc, char** argv) {
 
     * Work on coloring algorithm
 
-    * Add optional gmp support / move to long doubles and long ints.
-   */
+    * Add optional gmp support / move to long long doubles and long ints.
+  */
 
-  W_WIDTH = 800 - (800 % CPUS);
-  W_HEIGHT = 600;
 
-  if (init_sdl() == EXIT_FAILURE)
-    return EXIT_FAILURE;
+  int rank, num_processes;
 
-  SDL_RenderClear(renderer);
-  SDL_RenderPresent(renderer);
-
-  SDL_Event e;
   bool should_exit = false;
 
-  while (!should_exit) {
-    while (SDL_PollEvent(&e)) {
-      switch (e.type) {
-      case SDL_QUIT:
-        should_exit = true;
-        break;
-      case SDL_MOUSEBUTTONDOWN:
-        zoom_on_point((double)e.button.x / W_WIDTH,
-                      (double)e.button.y / W_HEIGHT);
-        break;
-      case SDL_KEYDOWN:
-        handle_key(e);
-        break;
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  W_WIDTH = 800 - (800 % num_processes);
+  W_HEIGHT = 600;
+
+  if(rank == 0){
+    void *window;
+    void *renderer;
+
+    SDL_Event e;
+
+    if (init_sdl(window, renderer) == EXIT_FAILURE)
+      return EXIT_FAILURE;
+
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+
+    while (!should_exit) {
+      while (SDL_PollEvent(&e)) {
+        switch (e.type) {
+        case SDL_QUIT:
+          should_exit = true;
+          for (int i = 1; i < num_processes; i++)
+            MPI_Send(&should_exit, 1, MPI_C_BOOL, i, SHUTDOWN_TAG, MPI_COMM_WORLD); //send the value of should_exit to the rest of the processes
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+          zoom_on_point((long double)e.button.x / W_WIDTH,
+                        (long double)e.button.y / W_HEIGHT);
+          break;
+        case SDL_KEYDOWN:
+          handle_key(e);
+          break;
+        }
       }
+      for (int i = 1; i < num_processes; i++) {
+        bool render = true;
+        MPI_Send(&render, 1, MPI_C_BOOL, i, RENDER_TAG, MPI_COMM_WORLD); //we want this to be blocking because we want to gurantee that all the processes know to start generating pixels
+      }
+      for (int i = 1; i < num_processes; i++) {
+        node_T* head = NULL;
+        MPI_Recv(head, 1, MPI_BYTE, i, RENDER_DONE_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        render_pixels(renderer, head);
+      }
+      MPI_Barrier(MPI_COMM_WORLD);  //gets stopped until the pixels are generated
+      SDL_RenderPresent(renderer);  // renders/updates image
     }
-    render_mandelbrot();
-    show_mandelbrot();
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+  }
+  else{
+    int exit_ticket;
+
+    node_T* head;
+    MPI_Request req;
+
+    MPI_Irecv(&should_exit, 1, MPI_C_BOOL, 0, SHUTDOWN_TAG, MPI_COMM_WORLD, &req);  //waits for the value of should_exit to be true
+    while (!should_exit) {
+      bool should_render;
+      MPI_Recv(&should_render, 1, MPI_C_BOOL, 0, RENDER_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //process receives call to generate pixels
+      head = cpu_n_generate_pixels(rank, num_processes);
+      MPI_Send(head, 1, MPI_BYTE, 0, RENDER_DONE_TAG, MPI_COMM_WORLD);
+      MPI_Barrier(MPI_COMM_WORLD);  //stops rendering until this is called, then sends the pixels over
+      MPI_Test(&req, &exit_ticket, MPI_STATUS_IGNORE); //uses should_exit as the flag so that, if we receive that call, it is set to true and we exit the loop
+      if(exit_ticket == 1)
+        should_exit = true;
+    }
   }
 
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(window);
-  SDL_Quit();
+  MPI_Finalize();
 
   return EXIT_SUCCESS;
 }
