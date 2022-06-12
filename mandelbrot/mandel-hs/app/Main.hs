@@ -6,6 +6,7 @@ import Data.Word
 import Data.ByteString (ByteString, pack)
 
 import Graphics.Gloss
+import Control.Parallel.Strategies
 
 windowWidth  = 800
 windowHeight = 600
@@ -19,7 +20,7 @@ mandelXMax   =  2.0
 mandelIters  =  80
 
 bitmapData :: ByteString
-bitmapData = pack $ concat $ map pixelNumToColor [0..numPixels-1]
+bitmapData = pack $ concat (map pixelNumToColor [0..numPixels-1] `using` parList rseq)
 
 ourPicture :: Picture
 ourPicture = bitmapOfByteString windowWidth windowHeight
