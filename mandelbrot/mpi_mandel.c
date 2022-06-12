@@ -4,354 +4,261 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
-
+//	SDL2 includes
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_keycode.h>
-
-#define SHUTDOWN_TAG    0
-#define RENDER_TAG      1
-#define RENDER_DONE_TAG 2
-
-/*
-  How to compile:
-
-  mpicc mpi_mandel.c -o mpi_mandel -Wall -std=c99 -lSDL2
-
-  Optionally, you can specify the following too:
-
-  How to run:
-
-  mpirun ./mpi_mandel
-
- */
-
-/*
-  FIXME: come up with an easy way to cacluate the mandelbrot pixels as well,
-  since the current pixels are for the window. Each pixel on the window is going
-  to have a relationship with the 'pixels' of the mandelbrot image.
-
-  Bascially the main window will be a magnifing window of the mandelbrot set and
-  it will serve to just show the information. However there the color at a
-  particular pixel will instead be based off of the actual coordinates of
-  wherever we are in the mandelbrot image.
- */
-
-typedef struct {
-  uint8_t r, g, b;
-} rgb_T;
-
-typedef struct {
-  rgb_T rgb_val;
-  int x, y;
-} rgb_pixel_T;
-
-typedef struct node {
-  rgb_pixel_T pixel;
-  struct node* next;
-} node_T;
-
-int W_WIDTH;
-int W_HEIGHT;
-
-long double MANDEL_Y_MIN = -1.5;
-long double MANDEL_Y_MAX = 1.5;
-long double MANDEL_X_MIN = -2.0;
-long double MANDEL_X_MAX = 2.0;
-
-bool check_mandel_proportions() {
-  long double diff_x_max_min = MANDEL_X_MAX - MANDEL_X_MIN;
-  long double diff_y_max_min = MANDEL_Y_MAX - MANDEL_Y_MIN;
-  long double diff_to_win_prop = (.75 - (diff_y_max_min / diff_x_max_min));
-  diff_to_win_prop =
-      diff_to_win_prop < 0 ? -diff_to_win_prop : diff_to_win_prop;
-  return diff_to_win_prop < 0.001;
-}
-
-#ifndef MANDEL_ITER
-#define MANDEL_ITER 80
+//	defines
+#ifndef MAX_ITER
+#define MAX_ITER 80
 #endif
+#ifndef WIN_WIDTH
+#define WIN_WIDTH 800
+#endif
+#ifndef WIN_HEIGHT
+#define WIN_HEIGHT 600
+#endif
+//	typedefs
+typedef long double ld;
+typedef struct {
+	uint8_t r, g, b;
+} rgb_T;
+//	enums
+enum tag {SHUTDOWN_TAG, RENDER_TAG, RENDERING_DONE_TAG};
+enum direction {UP, DOWN, LEFT, RIGHT};
+//	constants
+const int POINTER_SIZE = sizeof(void*);
+//	functions
+//	gets the minimum value between two integers
+int imin(int a, int b){
+	return ((a < b) ? a : b);
+}
+//	initializes SDL, window, and renderer and returns success if it worked or failure if it didn't
+int init_sdl(SDL_Window* window, SDL_Renderer* renderer){
+	if(SDL_Init(SDL_INIT_VIDEO) != 0){
+		fprintf(stderr, "[ERR] Could not initialize SDL2: %s\n", SDL_GetError());
+		return EXIT_FAILURE;
+	}
+	window = SDL_CreateWindow("Mandelbrot - C", 0, 0, WIN_WIDTH, WIN_HEIGHT, SDL_WINDOW_SHOWN);
+	if(window == NULL){
+		fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
+		return EXIT_FAILURE;
+	}
+	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	if(renderer == NULL){
+		SDL_DestroyWindow(window);
+		fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
+		return EXIT_FAILURE;
+	}
+	return EXIT_SUCCESS;
+}
+//	pans the view
+void pan(int dir, ld* ymax, ld* ymin, ld* xmax, ld* xmin){
+  int pixel_size = 10;
+  ld y_delta = ((ld)pixel_size / WIN_HEIGHT) * (*ymax - *ymin);
+  ld x_delta = ((ld)pixel_size /  WIN_WIDTH) * (*xmax - *xmin);
+  switch(dir){
+  case UP:
+    *ymax -= y_delta;
+    *ymin -= y_delta;
+    break;
+  case DOWN:
+    *ymax += y_delta;
+    *ymin += y_delta;
+    break;
+  case LEFT:
+    *xmax -= x_delta;
+    *xmin -= x_delta;
+    break;
+  case RIGHT:
+    *xmax += x_delta;
+    *xmin += x_delta;
+    break;
+  }
+}
+//	handles keyboard input
+void handle_key(SDL_Event e, ld* ymax, ld* ymin, ld* xmax, ld* xmin){
+  switch (e.key.keysym.sym) {
+  case SDLK_LEFT:
+    pan(LEFT, ymax, ymin, xmax, xmin);
+    break;
+  case SDLK_RIGHT:
+    pan(RIGHT, ymax, ymin, xmax, xmin);
+    break;
+  case SDLK_UP:
+    pan(UP, ymax, ymin, xmax, xmin);
+    break;
+  case SDLK_DOWN:
+    pan(DOWN, ymax, ymin, xmax, xmin);
+    break;
+  }
+}
+//	zooms the view in at the specified point
+void zoom_in(ld x_pt, ld y_pt, ld* ymax, ld* ymin, ld* xmax, ld* xmin){
+  ld new_x_range = (*xmax - *xmin) * .8;
+  ld new_y_range = (*ymax - *ymin) * .8;
+  ld cy = y_pt * (*ymax - *ymin) + *ymin;
+  ld cx = x_pt * (*xmax - *xmin) + *xmin;
 
+  *xmax = cx + (.5 * new_x_range);
+  *xmin = cx - (.5 * new_x_range);
+
+  *ymax = cy + (.5 * new_y_range);
+  *ymin = cy - (.5 * new_y_range);
+}
+//	sends a message to all nodes except the one sending the message
+void MPI_Bcast_except(void* buffer, int count, MPI_Datatype datatype, int sender_rank, int tag, MPI_Comm communicator, int num_procs){
+	for(int i = 0; i < num_procs - 1; i++){
+		MPI_Send(buffer, count, datatype, (sender_rank + i + 1) % num_procs, tag, communicator);
+	}
+}
+//	gives a color based on the number of iterations the point reached
 rgb_T iter_to_rgb(int iter) {
-  int lowest_third = MANDEL_ITER / 3;
+  int lowest_third = MAX_ITER / 3;
   int middle_third = 2 * lowest_third;
-  long double percentile;
+  ld percentile;
   if (iter < lowest_third) {
     /* Blue Dominated*/
-    percentile = (long double)iter / lowest_third;
+    percentile = (ld)iter / lowest_third;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = .5 * max_mag, .g = .33 * max_mag, .b = max_mag};
   } else if (iter < middle_third) {
     /* Red Dominated*/
-    percentile = (long double)iter / middle_third;
+    percentile = (ld)iter / middle_third;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = max_mag, .g = .33 * max_mag, .b = .5 * max_mag};
   } else {
     /* Green Dominated*/
-    percentile = (long double)iter / MANDEL_ITER;
+    percentile = (ld)iter / MAX_ITER;
     int max_mag = (int)255 * percentile + 50;
     return (rgb_T){.r = .5 * max_mag, .g = max_mag, .b = .33 * max_mag};
   }
 }
+//	gets the color of the given point on the mandelbrot fractal
+rgb_T get_color_from_pt(int x_pt, int y_pt, ld* ymax, ld* ymin, ld* xmax, ld* xmin){
+	ld y = ((ld)y_pt / WIN_HEIGHT) * (*ymax - *ymin) + *ymin;
+  ld x = ((ld)x_pt / (WIN_WIDTH - 1)) * (*xmax - *xmin) + *xmin;
+  ld x0 = x;
+  ld y0 = y;
+  for (int i = 0; i < MAX_ITER; i++) {
+    ld x1 = (x0 * x0) - (y0 * y0);
+    ld y1 = 2 * x0 * y0;
 
-/*
-This is the actual Mandelbrot algorithm
-*/
-rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
-  long double y = ((long double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
-             MANDEL_Y_MIN;
-  long double x = ((long double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
-             MANDEL_X_MIN;
-  long double x0 = x;
-  long double y0 = y;
-  for (int i = 0; i < MANDEL_ITER; i++) {
-    long double x1 = (x0 * x0) - (y0 * y0);
-    long double y1 = 2 * x0 * y0;
-
-    x1 = x1 + (long double)x;
-    y1 = y1 + (long double)y;
+    x1 = x1 + (ld)x;
+    y1 = y1 + (ld)y;
 
     x0 = x1;
     y0 = y1;
 
-    long double d = (x0 * x0) + (y0 * y0);
+    ld d = (x0 * x0) + (y0 * y0);
     if (d > 4) {
       return iter_to_rgb(i);
     }
   }
   return (rgb_T){.r = 0, .g = 0, .b = 0};
 }
+//	generates all of the colors in the specified chunk of the window
+void render_pixels(SDL_Renderer* renderer, int rank, int chunk_width, ld* ymax, ld* ymin, ld* xmax, ld* xmin){
+	for(int x0 = chunk_width * (rank - 1); x0 < imin(chunk_width * rank, WIN_WIDTH); x0++){
+		for(int y0 = 0; y0 < WIN_HEIGHT; y0++){
+			rgb_T col = get_color_from_pt(x0, y0, ymax, ymin, xmax, xmin);
 
-node_T* cpu_n_generate_pixels(int proc_num, int num_procs) {
-  /*
-    FIXME: With 3 CPUS Black bars appear - I don't know why but it doesn't
-   happen when the number of CPUs is 1 or 2.
-  */
-  node_T* head = NULL;
-  int num_elements = 0;
-  for (int i = proc_num; i <= W_WIDTH; i += num_procs) {
-    for (int j = 0; j <= W_HEIGHT; j++) {
-      if (head == NULL) {
-        head = malloc(sizeof(node_T));
-        head->pixel.rgb_val = window_x_y_to_color(i, j);
-        head->pixel.x = i;
-        head->pixel.y = j;
-        head->next = NULL;
-        num_elements++;
-      }
-      else {
-        node_T* add = malloc(sizeof(node_T));
-        add->pixel.rgb_val = window_x_y_to_color(i, j);
-        add->pixel.x = i;
-        add->pixel.y = j;
-        add->next = head;
-        head = add;
-        num_elements++;
-      }
-      printf("Number of pixels generated by process %d: %d\n", proc_num, num_elements);
-    }
-  }
-
-  return head;
+			SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, 255);
+			SDL_RenderDrawPoint(renderer, x0, y0);
+		}
+	}
 }
 
-void render_pixels(void* renderer, node_T* head) {
-  node_T* cursor = head;
-  if (cursor != NULL && cursor->next != NULL) {
-    SDL_SetRenderDrawColor(renderer, cursor->pixel.rgb_val.r, cursor->pixel.rgb_val.g, cursor->pixel.rgb_val.b, 255);
-    SDL_RenderDrawPoint(renderer, cursor->pixel.x, cursor->pixel.y);
-    cursor = cursor->next;
-  }
-}
+int main(int argc, char**argv){
+	ld mandel_y_max =  1.5;
+	ld mandel_y_min = -1.5;
+	ld mandel_x_max =  2.0;
+	ld mandel_x_min = -2.0;
 
-int init_sdl(void* window, void* renderer){
-  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-    fprintf(stderr, "[ERR] Could not initialize sdl2: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-  window = SDL_CreateWindow("Mandelbrot - C", 0, 0, W_WIDTH, W_HEIGHT,
-                            SDL_WINDOW_SHOWN);
-  if (window == NULL) {
-    fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-  renderer = SDL_CreateRenderer(
-      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-  if (renderer == NULL) {
-    SDL_DestroyWindow(window);
-    fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
-    return EXIT_FAILURE;
-  }
-  return EXIT_SUCCESS;
-}
+	int chunk_width;
+	int num_processes, rank;
 
-void zoom_on_point(long double xp, long double yp) {
-  long double new_x_range = (MANDEL_X_MAX - MANDEL_X_MIN) * .8;
-  long double new_y_range = (MANDEL_Y_MAX - MANDEL_Y_MIN) * .8;
-  long double cy = yp * (MANDEL_Y_MAX - MANDEL_Y_MIN) + MANDEL_Y_MIN;
-  long double cx = xp * (MANDEL_X_MAX - MANDEL_X_MIN) + MANDEL_X_MIN;
+	bool running = true;
 
-  MANDEL_X_MAX = cx + (.5 * new_x_range);
-  MANDEL_X_MIN = cx - (.5 * new_x_range);
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  MANDEL_Y_MAX = cy + (.5 * new_y_range);
-  MANDEL_Y_MIN = cy - (.5 * new_y_range);
-}
+	chunk_width = (WIN_WIDTH / num_processes) + ((WIN_WIDTH % num_processes) == 0 ? 0 : 1);
 
+	if(num_processes < 2){
+		printf("[ERR] This application needs at least 2 processes.\n");
+		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+	}
 
-enum { UP, DOWN, LEFT, RIGHT };
+	if(rank == 0){
+		SDL_Window* window = NULL;
+		SDL_Renderer* renderer = NULL;
 
-void pan(int dir) {
-  int pixel_size = 10;
-  long double y_delta =
-      ((long double)pixel_size / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN);
-  long double x_delta =
-      ((long double)pixel_size / W_WIDTH) * (MANDEL_X_MAX - MANDEL_X_MIN);
-  switch (dir) {
-  case UP:
-    MANDEL_Y_MAX -= y_delta;
-    MANDEL_Y_MIN -= y_delta;
-    break;
-  case DOWN:
-    MANDEL_Y_MAX += y_delta;
-    MANDEL_Y_MIN += y_delta;
-    break;
-  case LEFT:
-    MANDEL_X_MAX -= x_delta;
-    MANDEL_X_MIN -= x_delta;
-    break;
-  case RIGHT:
-    MANDEL_X_MAX += x_delta;
-    MANDEL_X_MIN += x_delta;
-    break;
-  default:
-    return;
-  }
-}
+		if(init_sdl(window, renderer) == EXIT_FAILURE){
+			printf("[ERR] SDL initialization failed.\n");
+			MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+		}
 
-void handle_key(SDL_Event e) {
-  switch (e.key.keysym.sym) {
-  case SDLK_LEFT:
-    pan(LEFT);
-    break;
-  case SDLK_RIGHT:
-    pan(RIGHT);
-    break;
-  case SDLK_UP:
-    pan(UP);
-    break;
-  case SDLK_DOWN:
-    pan(DOWN);
-    break;
-  }
-}
+		SDL_RenderClear(renderer);
+		SDL_RenderPresent(renderer);
+		while(running){
+			SDL_Event e;
 
-int main(int argc, char** argv) {
-  /*
-    Set our initial window width and height to be 800 x 600 - will be
-    adjusted.
+			while(SDL_PollEvent(&e)){
+        switch(e.type){
+	        case SDL_QUIT:
+	          running = false;
+						for(int i = 1; i < num_processes; i++)	//send to all other processes
+							MPI_Send(&running, 1, MPI_C_BOOL, i, SHUTDOWN_TAG, MPI_COMM_WORLD);
+            // MPI_Bcast_except(&running, 1, MPI_C_BOOL, rank, SHUTDOWN_TAG, MPI_COMM_WORLD, num_processes)
+	          break;
+	        case SDL_MOUSEBUTTONDOWN:
+	          zoom_in((ld)e.button.x / WIN_WIDTH,
+	                  (ld)e.button.y / WIN_HEIGHT,
+										&mandel_y_max,
+										&mandel_y_min,
+										&mandel_x_max,
+										&mandel_x_min);
+	          break;
+	        case SDL_KEYDOWN:
+						handle_key(e, &mandel_y_max, &mandel_y_min, &mandel_x_max, &mandel_x_min);
+	          break;
+				}
+    	}
+      for(int i = 1; i < num_processes; i++)	//send to all other processes
+        MPI_Send(renderer, POINTER_SIZE, MPI_BYTE, i, RENDER_TAG, MPI_COMM_WORLD);
+			// MPI_Bcast_except(renderer, POINTER_SIZE, MPI_BYTE, rank, RENDER_TAG, MPI_COMM_WORLD, num_processes);
+			MPI_Barrier(MPI_COMM_WORLD);	//wait for the rendering to be done
+			SDL_RenderPresent(renderer);
+		}
 
-    Automatically scale the window width so that the number of CPUS will
-    always cleanly divide.
-   */
-
-  /*
-    TODO:
-    * Look into long double buffering?
-    https://stackoverflow.com/questions/28334892/sdl2-long double-buffer-not-working-still-tearing
-
-    - Is it possible to have two 'images' that we can render to? So that way
-    we can smoothly zoom in. So we can have the show_mandelbrot function
-    always show the 'ready' buffer while 'render_mandelbrot' can always work
-    on the next one?
-
-    * Allow for zooming out
-
-    * Work on coloring algorithm
-
-    * Add optional gmp support / move to long long doubles and long ints.
-  */
-
-
-  int rank, num_processes;
-
-  bool should_exit = false;
-
-  MPI_Init(&argc, &argv);
-  MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  W_WIDTH = 800 - (800 % num_processes);
-  W_HEIGHT = 600;
-
-  if(rank == 0){
-    void *window;
-    void *renderer;
-
-    SDL_Event e;
-
-    if (init_sdl(window, renderer) == EXIT_FAILURE)
-      return EXIT_FAILURE;
-
-    SDL_RenderClear(renderer);
-    SDL_RenderPresent(renderer);
-
-    while (!should_exit) {
-      while (SDL_PollEvent(&e)) {
-        switch (e.type) {
-        case SDL_QUIT:
-          should_exit = true;
-          for (int i = 1; i < num_processes; i++)
-            MPI_Send(&should_exit, 1, MPI_C_BOOL, i, SHUTDOWN_TAG, MPI_COMM_WORLD); //send the value of should_exit to the rest of the processes
-          break;
-        case SDL_MOUSEBUTTONDOWN:
-          zoom_on_point((long double)e.button.x / W_WIDTH,
-                        (long double)e.button.y / W_HEIGHT);
-          break;
-        case SDL_KEYDOWN:
-          handle_key(e);
-          break;
-        }
-      }
-      for (int i = 1; i < num_processes; i++) {
-        bool render = true;
-        MPI_Send(&render, 1, MPI_C_BOOL, i, RENDER_TAG, MPI_COMM_WORLD); //we want this to be blocking because we want to gurantee that all the processes know to start generating pixels
-      }
-      for (int i = 1; i < num_processes; i++) {
-        node_T* head = NULL;
-        MPI_Recv(head, 1, MPI_BYTE, i, RENDER_DONE_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        render_pixels(renderer, head);
-      }
-      MPI_Barrier(MPI_COMM_WORLD);  //gets stopped until the pixels are generated
-      SDL_RenderPresent(renderer);  // renders/updates image
-    }
-
-    SDL_DestroyRenderer(renderer);
+		SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-  }
-  else{
-    int exit_ticket;
+	}
+	else{
+		int exit_flag;
+		SDL_Renderer* passed_renderer = NULL;
+		MPI_Status status;
+		MPI_Request exit_req;
+		while(running){
+			MPI_Irecv(&running, 1, MPI_C_BOOL, 0, SHUTDOWN_TAG, MPI_COMM_WORLD, &exit_req);
+			MPI_Recv(passed_renderer, POINTER_SIZE, MPI_BYTE, 0, RENDER_TAG, MPI_COMM_WORLD, &status);
+			render_pixels(passed_renderer, rank, chunk_width, &mandel_y_max
+																											, &mandel_y_min
+																											, &mandel_x_max
+																											, &mandel_x_min);
+			MPI_Barrier(MPI_COMM_WORLD);
+			MPI_Test(&exit_req, &exit_flag, MPI_STATUS_IGNORE);
+			if(exit_flag){
+				running = false;
+			}
+		}
+	}
 
-    node_T* head;
-    MPI_Request req;
-
-    MPI_Irecv(&should_exit, 1, MPI_C_BOOL, 0, SHUTDOWN_TAG, MPI_COMM_WORLD, &req);  //waits for the value of should_exit to be true
-    while (!should_exit) {
-      bool should_render;
-      MPI_Recv(&should_render, 1, MPI_C_BOOL, 0, RENDER_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE); //process receives call to generate pixels
-      head = cpu_n_generate_pixels(rank, num_processes);
-      MPI_Send(head, 1, MPI_BYTE, 0, RENDER_DONE_TAG, MPI_COMM_WORLD);
-      MPI_Barrier(MPI_COMM_WORLD);  //stops rendering until this is called, then sends the pixels over
-      MPI_Test(&req, &exit_ticket, MPI_STATUS_IGNORE); //uses should_exit as the flag so that, if we receive that call, it is set to true and we exit the loop
-      if(exit_ticket == 1)
-        should_exit = true;
-    }
-  }
-
-  MPI_Finalize();
-
-  return EXIT_SUCCESS;
+	MPI_Finalize();
+	return EXIT_SUCCESS;
 }
