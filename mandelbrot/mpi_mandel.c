@@ -37,17 +37,17 @@ int imin(int a, int b){
 }
 //	initializes SDL, window, and renderer and returns success if it worked or failure if it didn't
 int init_sdl(SDL_Window* window, SDL_Renderer* renderer){
-	if(SDL_Init(SDL_INIT_VIDEO) != 0){
+	if(SDL_Init(SDL_INIT_VIDEO)){  //if SDL_Init returns a non-zero value
 		fprintf(stderr, "[ERR] Could not initialize SDL2: %s\n", SDL_GetError());
 		return EXIT_FAILURE;
 	}
 	window = SDL_CreateWindow("Mandelbrot - C", 0, 0, WIN_WIDTH, WIN_HEIGHT, SDL_WINDOW_SHOWN);
-	if(window == NULL){
+	if(!window){ //if window == NULL
 		fprintf(stderr, "[ERR] SDL_CreateWindow failed: %s\n", SDL_GetError());
 		return EXIT_FAILURE;
 	}
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	if(renderer == NULL){
+	if(!renderer){  //if renderer == NULL
 		SDL_DestroyWindow(window);
 		fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
 		return EXIT_FAILURE;
@@ -107,12 +107,6 @@ void zoom_in(ld x_pt, ld y_pt, ld* ymax, ld* ymin, ld* xmax, ld* xmin){
 
   *ymax = cy + (.5 * new_y_range);
   *ymin = cy - (.5 * new_y_range);
-}
-//	sends a message to all nodes except the one sending the message
-void MPI_Bcast_except(void* buffer, int count, MPI_Datatype datatype, int sender_rank, int tag, MPI_Comm communicator, int num_procs){
-	for(int i = 0; i < num_procs - 1; i++){
-		MPI_Send(buffer, count, datatype, (sender_rank + i + 1) % num_procs, tag, communicator);
-	}
 }
 //	gives a color based on the number of iterations the point reached
 rgb_T iter_to_rgb(int iter) {
@@ -182,7 +176,10 @@ int main(int argc, char**argv){
 
 	bool running = true;
 
-	MPI_Init(&argc, &argv);
+	if(MPI_Init(&argc, &argv) != MPI_SUCCESS){
+    printf("[ERR] MPI could not be initialized.\n");
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
 	MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -194,8 +191,8 @@ int main(int argc, char**argv){
 	}
 
 	if(rank == 0){
-		SDL_Window* window = NULL;
-		SDL_Renderer* renderer = NULL;
+		SDL_Window* window;
+		SDL_Renderer* renderer;
 
 		if(init_sdl(window, renderer) == EXIT_FAILURE){
 			printf("[ERR] SDL initialization failed.\n");
@@ -206,14 +203,10 @@ int main(int argc, char**argv){
 		SDL_RenderPresent(renderer);
 		while(running){
 			SDL_Event e;
-
 			while(SDL_PollEvent(&e)){
         switch(e.type){
 	        case SDL_QUIT:
-	          running = false;
-						for(int i = 1; i < num_processes; i++)	//send to all other processes
-							MPI_Send(&running, 1, MPI_C_BOOL, i, SHUTDOWN_TAG, MPI_COMM_WORLD);
-            // MPI_Bcast_except(&running, 1, MPI_C_BOOL, rank, SHUTDOWN_TAG, MPI_COMM_WORLD, num_processes)
+	          running = false; //since this is shared by all processed, we only have to do this here
 	          break;
 	        case SDL_MOUSEBUTTONDOWN:
 	          zoom_in((ld)e.button.x / WIN_WIDTH,
@@ -228,9 +221,8 @@ int main(int argc, char**argv){
 	          break;
 				}
     	}
-      for(int i = 1; i < num_processes; i++)	//send to all other processes
-        MPI_Send(renderer, POINTER_SIZE, MPI_BYTE, i, RENDER_TAG, MPI_COMM_WORLD);
-			// MPI_Bcast_except(renderer, POINTER_SIZE, MPI_BYTE, rank, RENDER_TAG, MPI_COMM_WORLD, num_processes);
+      //send render message to all other processes with the pointer to the renderer
+      MPI_Bcast(renderer, POINTER_SIZE, MPI_BYTE, 0, MPI_COMM_WORLD);
 			MPI_Barrier(MPI_COMM_WORLD);	//wait for the rendering to be done
 			SDL_RenderPresent(renderer);
 		}
@@ -240,22 +232,14 @@ int main(int argc, char**argv){
     SDL_Quit();
 	}
 	else{
-		int exit_flag;
-		SDL_Renderer* passed_renderer = NULL;
-		MPI_Status status;
-		MPI_Request exit_req;
+    SDL_Renderer* passed_renderer = NULL;
 		while(running){
-			MPI_Irecv(&running, 1, MPI_C_BOOL, 0, SHUTDOWN_TAG, MPI_COMM_WORLD, &exit_req);
-			MPI_Recv(passed_renderer, POINTER_SIZE, MPI_BYTE, 0, RENDER_TAG, MPI_COMM_WORLD, &status);
+      MPI_Bcast(passed_renderer, POINTER_SIZE, MPI_BYTE, 0, MPI_COMM_WORLD);
 			render_pixels(passed_renderer, rank, chunk_width, &mandel_y_max
 																											, &mandel_y_min
 																											, &mandel_x_max
 																											, &mandel_x_min);
 			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Test(&exit_req, &exit_flag, MPI_STATUS_IGNORE);
-			if(exit_flag){
-				running = false;
-			}
 		}
 	}
 
