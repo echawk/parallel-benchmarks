@@ -11,6 +11,6 @@ executable monte-carlo-hs
     main-is:          Main.hs
 
     ghc-options:      -threaded
-    build-depends:    base, random
+    build-depends:    base, random, parallel
     hs-source-dirs:   app
     default-language: Haskell2010
