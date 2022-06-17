@@ -34,7 +34,10 @@ imatrix_t matrix_mult(imatrix_t mtx1, imatrix_t mtx2){
 		exit(EXIT_FAILURE);
 	}
 	else{
-		imatrix_t mtx3 = (imatrix_t){mtx1.r, mtx2.c, calloc_dyn_2d_arr(mtx1.r, mtx2.c)};
+		imatrix_t mtx3;
+		mtx3.r = mtx1.r;
+		mtx3.c = mtx2.c;
+		mtx3.vals = calloc_dyn_2d_arr(mtx1.r, mtx2.c);
 		for(int i = 0; i < mtx1.r; i++){
 			for(int j = 0; j < mtx2.c; j++){
 				mtx3.vals[i][j] = dot_product(mtx1.vals[i], get_column(mtx2, j), mtx1.c);
@@ -63,6 +66,7 @@ void print_mtx(imatrix_t mtx){
 void main(int argc, char** argv){
 	imatrix_t mtx1 = (imatrix_t){2, 3, calloc_dyn_2d_arr(2, 3)};
 	imatrix_t mtx2 = (imatrix_t){3, 4, calloc_dyn_2d_arr(3, 4)};
+	imatrix_t mtx3;
 
 	for(int i = 0; i < mtx1.r; i++){
 		for(int j = 0; j < mtx1.c; j++){
@@ -77,8 +81,11 @@ void main(int argc, char** argv){
 	}
 
 	print_mtx(mtx1);
-	printf("\n");
+	printf("multiplied by\n");
 	print_mtx(mtx2);
+	printf("is\n");
+	matrix_mult(mtx1, mtx2);
+	print_mtx(mtx3);
 	free_2d_arr(mtx1.vals, mtx1.r);
 	// free_2d_arr(mtx2.vals, mtx2.r);
 
