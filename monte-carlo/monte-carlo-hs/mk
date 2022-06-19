@@ -1,0 +1,5 @@
+#!/bin/sh -x
+
+cabal build
+
+exec $(cabal list-bin $(basename $PWD)) +RTS -N8 -s

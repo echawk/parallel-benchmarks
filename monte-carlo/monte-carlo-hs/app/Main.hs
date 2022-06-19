@@ -12,15 +12,10 @@ monteCarlo tossesLst tossesNum =
     4 * fromIntegral numInCircle / (fromIntegral tossesNum)
     where numInCircle = length $ filter pairInCircle tossesLst
 
-chunkList :: Int -> [a] -> [[a]]
-chunkList chunkSize lst =
-    let helper = (\cs l acc -> if cs >= (length l) then l : acc else helper cs (drop cs l) ((take cs l) : acc)) in
-    helper chunkSize lst []
-
 parMonteCarlo :: [Pair] -> Int -> Int -> Double
 parMonteCarlo tossesLst tossesNum numCpus =
-    let chunks = chunkList numCpus tossesLst
-        numInCircle = length $ concat (map (\l -> filter pairInCircle l) chunks `using` parList rseq)
+    let chunkSize = length tossesLst `div` numCpus
+        numInCircle = length (filter pairInCircle tossesLst `using` parListChunk chunkSize rseq)
     in 4 * fromIntegral numInCircle / (fromIntegral tossesNum)
 
 pairInCircle :: Pair -> Bool
@@ -30,7 +25,7 @@ main :: IO ()
 main = do
   g <- newStdGen
   numCpu <- getNumCapabilities
-  let totalTosses = 1000
+  let totalTosses = 10000000
       lst = take totalTosses $ (randoms g :: [Pair]) in
       do
           print $ monteCarlo    lst totalTosses
