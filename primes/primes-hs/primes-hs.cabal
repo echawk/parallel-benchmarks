@@ -1,0 +1,16 @@
+cabal-version:      2.4
+name:               primes-hs
+version:            0.1.0.0
+
+license:            MIT
+author:             Ethan
+maintainer:         ethan.hawk@valpo.edu
+
+
+executable primes-hs
+    main-is:          Main.hs
+
+    ghc-options:      -threaded
+    build-depends:    base
+    hs-source-dirs:   app
+    default-language: Haskell2010
