@@ -2,51 +2,23 @@
 
 for d in */; do (
     cd $d
-    case $d in
-        factorization/)
+    bd=$(basename $d)
+    case $bd in
+        factorization)
             gcc -lpthread factorize.c -o factorize-pthread
             mpicc -DUSE_MPI factorize.c -o factorize-mpi
             ghc -O3 -threaded factorize.hs -o factorize-hs
             ;;
-        matrix-mult/)
+        *)
             for sd in */; do (
                 cd $sd
                 case $sd in
-                    matrix-mult-c/)
-                        gcc -lpthread matrix_mult.c -o matrix_mult
-                        mpicc mpi_matrix_mult.c -o matrix_mult-mpi
+                    $bd-c/)
+                        gcc -lSDL2 -lpthread $bd.c -o $bd
+                        mpicc -lSDL2 mpi_$bd.c -o $bd-mpi
                         ;;
 
-                    matrix-mult-hs/)
-                        cabal build
-                        ;;
-                esac
-            ) done
-            ;;
-        mandelbrot/)
-            for sd in */; do (
-                cd $sd
-                case $sd in
-                    mandel-c/)
-                        gcc -lpthread -lSDL2 mandel.c -o mandel
-                        mpicc -lSDL2 mpi_mandel.c -o mandel-mpi
-                        ;;
-
-                    mandel-hs/)
-                        cabal build
-                        ;;
-                esac
-            ) done
-            ;;
-        monte-carlo/)
-            for sd in */; do (
-                cd $sd
-                case $sd in
-                    monte-carlo-c/)
-                        mpicc mpi_monte_carlo.c -o monte_carlo-mpi
-                        ;;
-
-                    monte-carlo-hs/)
+                    $bd-hs/)
                         cabal build
                         ;;
                 esac
