@@ -7,6 +7,8 @@ import Data.ByteString (ByteString, pack)
 
 import Graphics.Gloss
 
+import Vec3 as V
+
 windowTitle = "Ray Tracer - Haskell"
 windowWidth = 800 :: Int
 windowHeight = 600 :: Int
@@ -14,9 +16,12 @@ windowHeight = 600 :: Int
 imageWidth  = 256 :: Int
 imageHeight = 256 :: Int
 
+-- FIXME: I think the image is being flipped?
 imageData :: ByteString
-imageData = pack $ concat
+imageData = pack
+  $ concat
   $ map (\(x, y) -> coordToColor x y)
+  $ reverse
   $ genCoords imageWidth imageHeight
 
 thePicture :: Picture
@@ -41,6 +46,8 @@ coordToColor width height =
 genCoords :: Int -> Int -> [(Int, Int)]
 genCoords w h = concat $ map (\x -> map (\y -> (x, y)) [0..h-1]) [1..w-1]
 
+a = (1, 2, 3) :: IntVec3 
+  
 main :: IO ()
 main = display (InWindow windowTitle
                (windowWidth, windowHeight) (0, 0))
