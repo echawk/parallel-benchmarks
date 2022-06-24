@@ -7,7 +7,7 @@ import Data.ByteString (ByteString, pack)
 
 import Graphics.Gloss
 
-import Vec3 as V
+import Vec as V
 
 windowTitle = "Ray Tracer - Haskell"
 windowWidth = 800 :: Int
@@ -46,8 +46,6 @@ coordToColor width height =
 genCoords :: Int -> Int -> [(Int, Int)]
 genCoords w h = concat $ map (\x -> map (\y -> (x, y)) [0..h-1]) [1..w-1]
 
-a = (1, 2, 3) :: IntVec3 
-  
 main :: IO ()
 main = display (InWindow windowTitle
                (windowWidth, windowHeight) (0, 0))
