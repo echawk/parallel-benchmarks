@@ -1,15 +1,15 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_events.h>
-#include <SDL2/SDL_render.h>
 #include <SDL2/SDL_keycode.h>
+#include <SDL2/SDL_render.h>
 
 #ifndef CPUS
 #define CPUS 4
@@ -69,24 +69,40 @@ bool check_mandel_proportions() {
 #endif
 
 rgb_T iter_to_rgb(int iter) {
-  int lowest_third = MANDEL_ITER / 3;
-  int middle_third = 2 * lowest_third;
-  long double percentile;
-  if (iter < lowest_third) {
-    /* Blue Dominated*/
-    percentile = (long double)iter / lowest_third;
-    int max_mag = (int)255 * percentile + 50;
-    return (rgb_T){.r = .5 * max_mag, .g = .33 * max_mag, .b = max_mag};
-  } else if (iter < middle_third) {
-    /* Red Dominated*/
-    percentile = (long double)iter / middle_third;
-    int max_mag = (int)255 * percentile + 50;
-    return (rgb_T){.r = max_mag, .g = .33 * max_mag, .b = .5 * max_mag};
-  } else {
-    /* Green Dominated*/
-    percentile = (long double)iter / MANDEL_ITER;
-    int max_mag = (int)255 * percentile + 50;
-    return (rgb_T){.r = .5 * max_mag, .g = max_mag, .b = .33 * max_mag};
+
+  switch (iter % 16) {
+  case 0:
+    return (rgb_T){.r = 66, .g = 30, .b = 15};
+  case 1:
+    return (rgb_T){.r = 25, .g = 7, .b = 26};
+  case 2:
+    return (rgb_T){.r = 9, .g = 1, .b = 47};
+  case 3:
+    return (rgb_T){.r = 4, .g = 4, .b = 73};
+  case 4:
+    return (rgb_T){.r = 0, .g = 7, .b = 100};
+  case 5:
+    return (rgb_T){.r = 12, .g = 44, .b = 138};
+  case 6:
+    return (rgb_T){.r = 24, .g = 82, .b = 177};
+  case 7:
+    return (rgb_T){.r = 57, .g = 125, .b = 209};
+  case 8:
+    return (rgb_T){.r = 134, .g = 181, .b = 229};
+  case 9:
+    return (rgb_T){.r = 211, .g = 236, .b = 248};
+  case 10:
+    return (rgb_T){.r = 241, .g = 233, .b = 191};
+  case 11:
+    return (rgb_T){.r = 248, .g = 201, .b = 95};
+  case 12:
+    return (rgb_T){.r = 255, .g = 170, .b = 0};
+  case 13:
+    return (rgb_T){.r = 204, .g = 128, .b = 0};
+  case 14:
+    return (rgb_T){.r = 153, .g = 87, .b = 0};
+  case 15:
+    return (rgb_T){.r = 106, .g = 52, .b = 3};
   }
 }
 
@@ -94,10 +110,12 @@ rgb_T window_x_y_to_color(int x_pixel, int y_pixel) {
   /*
     This is the actual mandelbrot algorithm.
    */
-  long double y = ((long double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
-             MANDEL_Y_MIN;
-  long double x = ((long double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
-             MANDEL_X_MIN;
+  long double y =
+      ((long double)y_pixel / W_HEIGHT) * (MANDEL_Y_MAX - MANDEL_Y_MIN) +
+      MANDEL_Y_MIN;
+  long double x =
+      ((long double)x_pixel / (W_WIDTH - 1)) * (MANDEL_X_MAX - MANDEL_X_MIN) +
+      MANDEL_X_MIN;
   long double x0 = x;
   long double y0 = y;
   for (int i = 0; i < MANDEL_ITER; i++) {
@@ -283,7 +301,8 @@ int main() {
   /*
     TODO:
     * Look into long double buffering?
-    https://stackoverflow.com/questions/28334892/sdl2-long double-buffer-not-working-still-tearing
+    https://stackoverflow.com/questions/28334892/sdl2-long
+    double-buffer-not-working-still-tearing
 
     - Is it possible to have two 'images' that we can render to? So that way
     we can smoothly zoom in. So we can have the show_mandelbrot function
