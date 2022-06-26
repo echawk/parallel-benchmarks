@@ -31,17 +31,14 @@ thePicture = bitmapOfByteString imageWidth imageHeight
 
 coordToColor :: Int -> Int -> [Word8]
 coordToColor width height =
-    let fw  = fromIntegral width 
-        fh  = fromIntegral height  
-        fiw = fromIntegral imageWidth 
+    let fw  = fromIntegral width
+        fh  = fromIntegral height
+        fiw = fromIntegral imageWidth
         fih = fromIntegral imageHeight
-        r = (fh / fih) * 255.999
-        g = (fw / fiw) * 255.999 
-        b = (0.25)     * 255.999 
-        ir = fromInteger (round r) :: Word8
-        ig = fromInteger (round g) :: Word8
-        ib = fromInteger (round b) :: Word8
-    in [ir, ig, ib, 255]
+        r = (fw / fiw)
+        g = (fh / fih)
+        b = (0.25)
+    in floatVec3ToColor (FloatVec3 r g b)
 
 genCoords :: Int -> Int -> [(Int, Int)]
 genCoords w h = concat $ map (\x -> map (\y -> (x, y)) [0..h-1]) [1..w-1]
