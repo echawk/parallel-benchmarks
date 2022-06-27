@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "color.h"
 #include "vec3.h"
 
 int main() {
@@ -14,10 +15,8 @@ int main() {
       double r = (double)i / (image_width - 1);
       double g = (double)j / (image_height - 1);
       double b = 0.25;
-      int ir = (int)255.999 * r;
-      int ig = (int)255.999 * g;
-      int ib = (int)255.999 * b;
-      printf("%d %d %d\n", ir, ig, ib);
+      vec3_T color = (vec3_T){.x = r, .y = g, .z = b};
+      write_color(stdout, color);
     }
   }
 
