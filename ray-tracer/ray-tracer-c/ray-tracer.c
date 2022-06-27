@@ -1,10 +1,38 @@
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "color.h"
 #include "ray.h"
 #include "vec3.h"
 
+/*
+  How to run:
+
+  (depends on imagemagick)
+
+  gcc ray-tracer.c -o ray-tracer
+  ./ray-tracer > out.ppm
+  convert out.ppm out.jpg
+
+ */
+
+bool hit_sphere(vec3_T center, double radius, ray_T r) {
+  vec3_T oc = vec3_subt_vec3(r.origin, center);
+  double a = vec3_dot(r.direction, r.direction);
+  double b = 2.0 * vec3_dot(oc, r.direction);
+  double c = vec3_dot(oc, oc) - radius * radius;
+  double discriminant = b * b - 4 * a * c;
+  return (discriminant > 0);
+}
+
 vec3_T ray_color(ray_T r) {
+  /* FIXME: There is a bug with this part of the code - It's supposed to
+     look like this:
+     https://raytracing.github.io/images/img-1.03-red-sphere.png
+     At least that's what the tutorial indicates.
+   */
+  if (hit_sphere((vec3_T){.x = 0, .y = 0, .z = -1}, 0.5, r))
+    return (vec3_T){.x = 1, .y = 0, .z = 0};
   vec3_T unit_direction = vec3_unit_vector(r.direction);
   double t = 0.5 * (unit_direction.y + 1.0);
   vec3_T white = (vec3_T){.x = 1.0, .y = 1.0, .z = 1.0};
