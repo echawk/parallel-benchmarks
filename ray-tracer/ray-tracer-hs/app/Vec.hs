@@ -60,6 +60,15 @@ intVec3Cross (IntVec3 a b c) (IntVec3 d e f) =
 intVec3Unit :: IntVec3 -> IntVec3
 intVec3Unit v = intVec3DivN v (intVec3Len v)
 
+intVec3X :: IntVec3 -> Int
+intVec3X (IntVec3 a _ _) = a
+
+intVec3Y :: IntVec3 -> Int
+intVec3Y (IntVec3 _ b _) = b
+
+intVec3Z :: IntVec3 -> Int
+intVec3Z (IntVec3 _ _ c) = c
+
 -- FloatVec3 Code
   
 -- -- "Constructors"
@@ -114,3 +123,12 @@ floatVec3ToColor (FloatVec3 a b c) =
       wb = fromInteger (round (b * 255.999)) :: Word8
       wc = fromInteger (round (c * 255.999)) :: Word8
       in [wa, wb, wc, 255]
+
+floatVec3X :: FloatVec3 -> Float
+floatVec3X (FloatVec3 a _ _) = a
+
+floatVec3Y :: FloatVec3 -> Float
+floatVec3Y (FloatVec3 _ b _) = b
+
+floatVec3Z :: FloatVec3 -> Float
+floatVec3Z (FloatVec3 _ _ c) = c
