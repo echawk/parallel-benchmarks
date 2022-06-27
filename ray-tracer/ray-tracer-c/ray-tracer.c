@@ -56,9 +56,6 @@ int main() {
   vec3_T origin = (vec3_T){.x = 0, .y = 0, .z = 0};
   vec3_T horizontal = (vec3_T){.x = viewport_width, .y = 0, .z = 0};
   vec3_T vertical = (vec3_T){.x = 0, .y = viewport_height, .z = 0};
-  /* vec3_T lower_left_corner = origin - horizontal / 2 - vertical / 2 - */
-  /*                            (vec3_T){.x = 0, .y = 0, .z = focal_length}; */
-
   vec3_T lower_left_corner = vec3_subt_vec3(
       vec3_subt_vec3(vec3_subt_vec3(origin, vec3_divi_val(horizontal, 2)),
                      vec3_divi_val(vertical, 2)),
