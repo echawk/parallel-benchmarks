@@ -1,5 +1,10 @@
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+
+#ifndef CPUS
+#define CPUS 1
+#endif
 
 typedef unsigned long nt;
 
@@ -31,12 +36,34 @@ bool isPrime(nt n) {
   return true;
 }
 
-int main() {
-  int i = 1;
-  for (i = 1; i < 200000; i++) {
-    if (isPrime((nt)i)) {
-      printf("%d\n", i);
-    }
+void check_prime_from(int start, int total_cpus) {
+  nt init = (nt)start;
+  nt step = (nt)CPUS;
+  while (true) {
+    if (isPrime(init))
+      printf("%lu\n", init);
+    init += step;
   }
+}
+
+void *thread_prime(void *arg) {
+  int *v = (int *)arg;
+  check_prime_from(v[0], CPUS);
+  return NULL;
+}
+
+int main() {
+  pthread_t pids[CPUS];
+  int i, start = 0;
+
+  for (i = 0; i < CPUS; i++) {
+    start = i + 1;
+    pthread_create(&pids[i], NULL, thread_prime, (void *)&start);
+  }
+
+  for (i = 0; i < CPUS; i++) {
+    pthread_join(pids[i], NULL);
+  }
+
   return 0;
 }
