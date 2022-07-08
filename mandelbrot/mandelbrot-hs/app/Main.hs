@@ -20,7 +20,7 @@ mandelXMax   =  2.0
 mandelIters  =  80
 
 bitmapData :: ByteString
-bitmapData = pack $ concat (map pixelNumToColor [0..numPixels-1] `using` parList rseq)
+bitmapData = pack $ concat $ reverse (map pixelNumToColor [0..numPixels-1] `using` parList rseq)
 
 ourPicture :: Picture
 ourPicture = bitmapOfByteString windowWidth windowHeight
