@@ -3,19 +3,28 @@
 
 typedef unsigned long nt;
 
-/* TODO: add sqrt optimization */
-/* nt sqrt_nt(nt val) { */
-/*   int i = 0; */
+nt sqrt_nt(nt n) {
+  nt x0 = n / 2; // Initial estimate
+                 // Avoid overflow when s is the maximum representable value
 
-/*   for (i = 3; i < val; i += 2) { */
-/*   } */
-/* } */
+  // Sanity check
+  if (x0 != 0) {
+    nt x1 = (x0 + n / x0) / 2;
+
+    while (x1 < x0) {
+      x0 = x1;
+      x1 = (x0 + n / x0) / 2;
+    }
+    return x0 + 1;
+  } else
+    return n + 1;
+}
 
 bool isPrime(nt n) {
   int i = 0;
   if (n % 2 == 0)
     return false;
-  for (i = 3; i < (n - 1); i += 2) {
+  for (i = 3; i <= sqrt_nt(n); i += 2) {
     if (n % i == 0)
       return false;
   }
@@ -24,8 +33,10 @@ bool isPrime(nt n) {
 
 int main() {
   int i = 1;
-  for (i = 1; i < 20; i++) {
-    printf("%d is prime? %s\n", i, isPrime((nt)i) ? "true" : "false");
+  for (i = 1; i < 200000; i++) {
+    if (isPrime((nt)i)) {
+      printf("%d\n", i);
+    }
   }
   return 0;
 }
