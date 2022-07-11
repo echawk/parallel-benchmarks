@@ -57,7 +57,7 @@ int main() {
   int i, start = 0;
 
   for (i = 0; i < CPUS; i++) {
-    start = i + 1;
+    start = 2 * i + 1;
     pthread_create(&pids[i], NULL, thread_prime, (void *)&start);
   }
 
