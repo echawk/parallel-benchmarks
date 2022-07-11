@@ -15,8 +15,6 @@
 
 #include "common.h"
 
-int world_size;
-int world_rank;
 void render_mandelbrot() {
   /*
     The picture is effecively divided up into 'columns' -
@@ -38,46 +36,45 @@ void render_mandelbrot() {
     Each thread gets its own 'column'.
    */
 
-  // I don't know if this does what I think it does
+  // Broadcast render message to the other threads.
+  // cpu_n_render_pixels(world_rank, world_size);
+  int world_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-  cpu_n_render_pixels(world_rank, world_size);
+  int world_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  int render_flag;
+  if (world_rank == 0) {
+    printf("CPU %d is broadcasting!\n", world_rank);
+    MPI_Bcast(&render_flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  }
 }
 
 int main() {
-  /*
-    Set our initial window width and height to be 800 x 600 - will be
-    adjusted.
-
-    Automatically scale the window width so that the number of CPUS will
-    always cleanly divide.
-   */
-
-  /*
-    TODO:
-    * Look into long double buffering?
-    https://stackoverflow.com/questions/28334892/sdl2-long
-    double-buffer-not-working-still-tearing
-
-    - Is it possible to have two 'images' that we can render to? So that way
-    we can smoothly zoom in. So we can have the show_mandelbrot function
-    always show the 'ready' buffer while 'render_mandelbrot' can always work
-    on the next one?
-
-    * Allow for zooming out
-
-    * Work on coloring algorithm
-
-    * Add optional gmp support / move to long long doubles and long ints.
-   */
 
   MPI_Init(NULL, NULL);
+
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  int world_size;
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-  set_window_dimension(world_size - 1);
-  if (init_sdl() == EXIT_FAILURE)
-    return EXIT_FAILURE;
-  sdl_mainloop();
+  int render_flag;
+
+  if (world_rank == 0) {
+
+    set_window_dimension(world_size - 1);
+    if (init_sdl() == EXIT_FAILURE)
+      return EXIT_FAILURE;
+    sdl_mainloop();
+    sdl_cleanup();
+    return EXIT_SUCCESS;
+
+  } else {
+    MPI_Bcast(&render_flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (render_flag == 1) {
+      printf("CPU %d is rendering!\n", world_rank);
+      cpu_n_render_pixels(world_rank - 1, world_size - 1);
+    }
+  }
   MPI_Finalize();
-  sdl_cleanup();
-  return EXIT_SUCCESS;
 }
