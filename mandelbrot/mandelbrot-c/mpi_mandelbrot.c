@@ -4,13 +4,16 @@
 /*
   How to compile:
 
-  gcc -Wall -std=c99 -lSDL2 -lpthread mandel.c -o mandel
+  mpicc -Wall -std=c99 -lSDL2 mpi_mandelbrot.c -o mpi_mandelbrot
 
   Optionally, you can specify the following too:
   -DMANDEL_ITER=<num>
     ~ controls the number of iterations to perform for each mandelbrot pixel.
-  -DCPUS=<num_cpus>
-    ~ controls the number of threads that are spun up for rendering.
+
+  To execute:
+
+  mpiexec ./mpi_mandelbrot
+
  */
 
 #include "common.h"
