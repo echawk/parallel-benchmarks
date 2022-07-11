@@ -33,7 +33,7 @@ bool isPrime(nt n) {
 
 void check_prime_from(int start, int total_cpus) {
   nt init = (nt)start;
-  nt step = (nt)total_cpus;
+  nt step = 2 * (nt)total_cpus;
   while (true) {
     if (isPrime(init))
       printf("%lu\n", init);
