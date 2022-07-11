@@ -39,11 +39,8 @@ void render_mandelbrot() {
    */
 
   // I don't know if this does what I think it does
-  MPI_Init(NULL, NULL);
-  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
   cpu_n_render_pixels(world_rank, world_size);
-  MPI_Finalize();
 }
 
 int main() {
@@ -73,10 +70,14 @@ int main() {
     * Add optional gmp support / move to long long doubles and long ints.
    */
 
-  set_window_dimension(world_size);
+  MPI_Init(NULL, NULL);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  set_window_dimension(world_size - 1);
   if (init_sdl() == EXIT_FAILURE)
     return EXIT_FAILURE;
   sdl_mainloop();
+  MPI_Finalize();
   sdl_cleanup();
   return EXIT_SUCCESS;
 }
