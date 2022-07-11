@@ -9,8 +9,49 @@
 #include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_render.h>
 
+/*
+  TODO:
+  * Look into long double buffering?
+  https://stackoverflow.com/questions/28334892/sdl2-long
+  double-buffer-not-working-still-tearing
+
+  - Is it possible to have two 'images' that we can render to? So that way
+  we can smoothly zoom in. So we can have the show_mandelbrot function
+  always show the 'ready' buffer while 'render_mandelbrot' can always work
+  on the next one?
+
+  * Allow for zooming out
+
+  * Work on coloring algorithm
+
+  * Add optional gmp support / move to long long doubles and long ints.
+ */
+
+
 // Add the type signature here so we get rid of the warning.
 void render_mandelbrot();
+  /*
+    The picture is effecively divided up into 'columns' -
+
+                  WIDTH
+
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!  HEIGHT
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
+
+
+    Each thread gets its own 'column'.
+
+    So render_mandelbrot needs to do the above^,
+    likely by using 'cpu_n_render_pixels'
+   */
 
 typedef struct {
   uint8_t r, g, b;
@@ -25,8 +66,16 @@ long double MANDEL_X_MIN = -2.0;
 long double MANDEL_X_MAX = 2.0;
 
 void set_window_dimension(int total_cpus) {
+  /*
+    Set our initial window width and height to be 800 x 600 - will be
+    adjusted.
+
+    Automatically scale the window width so that the number of CPUS will
+    always cleanly divide.
+   */
   W_WIDTH = 800 - (800 % total_cpus);
   W_HEIGHT = 600;
+  printf("[INFO]: W: %d H: %d\n", W_WIDTH, W_HEIGHT);
 }
 
 bool check_mandel_proportions() {
@@ -178,8 +227,6 @@ int init_sdl() {
     fprintf(stderr, "[ERR] SDL_CreateRenderer failed: %s", SDL_GetError());
     return EXIT_FAILURE;
   }
-  SDL_RenderClear(renderer);
-  SDL_RenderPresent(renderer);
 
   render_mutex = SDL_CreateMutex();
   if (!render_mutex) {
@@ -214,8 +261,11 @@ void cpu_n_render_pixels(int cpu_n, int total_cpus) {
    happen when the number of CPUs is 1 or 2.
   */
 
+  printf("CPU %d of %d rendering...\n", cpu_n, total_cpus);
+
   rgb_T px_col;
   for (int i = cpu_n; i <= W_WIDTH; i += total_cpus) {
+    SDL_LockMutex(render_mutex);
     for (int j = 0; j <= W_HEIGHT; j++) {
       px_col = window_x_y_to_color(i, j);
       /*
@@ -223,11 +273,10 @@ void cpu_n_render_pixels(int cpu_n, int total_cpus) {
         turn around time compared to pthreads.
         To create mutexes in sdl2 you use this - SDL_CreateMutex();
        */
-      SDL_LockMutex(render_mutex);
       SDL_SetRenderDrawColor(renderer, px_col.r, px_col.g, px_col.b, 255);
       SDL_RenderDrawPoint(renderer, i, j);
-      SDL_UnlockMutex(render_mutex);
     }
+    SDL_UnlockMutex(render_mutex);
   }
 }
 

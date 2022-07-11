@@ -8,13 +8,18 @@
 /*
   How to compile:
 
-  gcc -Wall -std=c99 -lSDL2 -lpthread mandel.c -o mandel
+  gcc -Wall -std=c99 -lSDL2 -lpthread mandelbrot.c -o mandelbrot
 
   Optionally, you can specify the following too:
   -DMANDEL_ITER=<num>
     ~ controls the number of iterations to perform for each mandelbrot pixel.
   -DCPUS=<num_cpus>
     ~ controls the number of threads that are spun up for rendering.
+
+  To run:
+
+  ./mandelbrot
+
  */
 
 #include "common.h"
@@ -48,26 +53,6 @@ void *thread_render(void *arg) {
 }
 
 void render_mandelbrot() {
-  /*
-    The picture is effecively divided up into 'columns' -
-
-                  WIDTH
-
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!  HEIGHT
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-    !@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!@!
-
-
-    Each thread gets its own 'column'.
-   */
-  // I don't know if this does what I think it does
   pthread_t pids[CPUS];
   for (int i = 0; i < CPUS; i++) {
     pthread_create(&pids[i], NULL, thread_render, (void *)&i);
@@ -78,32 +63,6 @@ void render_mandelbrot() {
 }
 
 int main() {
-  /*
-    Set our initial window width and height to be 800 x 600 - will be
-    adjusted.
-
-    Automatically scale the window width so that the number of CPUS will
-    always cleanly divide.
-   */
-
-  /*
-    TODO:
-    * Look into long double buffering?
-    https://stackoverflow.com/questions/28334892/sdl2-long
-    double-buffer-not-working-still-tearing
-
-    - Is it possible to have two 'images' that we can render to? So that way
-    we can smoothly zoom in. So we can have the show_mandelbrot function
-    always show the 'ready' buffer while 'render_mandelbrot' can always work
-    on the next one?
-
-    * Allow for zooming out
-
-    * Work on coloring algorithm
-
-    * Add optional gmp support / move to long long doubles and long ints.
-   */
-
   set_window_dimension(CPUS);
   if (init_sdl() == EXIT_FAILURE)
     return EXIT_FAILURE;
