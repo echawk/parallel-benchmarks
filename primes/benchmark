@@ -4,9 +4,21 @@ TIME=${TIME:-5}
 HOSTS="${HOSTS:-localhost}"
 NUM_PROCESSES=${NUM_PROCESSES:-1}
 
+IFS=,
+NH=
+for h in $HOSTS; do
+    if [ -z $NH ]; then
+        NH="$h:$NUM_PROCESSES"
+    else
+        NH="$NH;$h:$NUM_PROCESSES"
+    fi
+done
+IFS=
+NH=$(echo $NH | tr ';' ',')
+
 if [ -e ./primes-c/primes-mpi ]; then
     printf "%s," "$HOSTS"
     printf "%d," "$TIME"
     printf "%d," "$NUM_PROCESSES"
-    timeout -s 2 5 mpiexec -N $NUM_PROCESSES -host $HOSTS ./primes-c/primes-mpi | wc -l
+    timeout -s 2 5 mpiexec -host $NH ./primes-c/primes-mpi | wc -l
 fi
