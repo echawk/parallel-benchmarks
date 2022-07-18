@@ -1,7 +1,9 @@
+# TODO: make this script run for multiple time intervals, and not just one
 
 hostnames_arr <- c("ada-cluster", "boole-cluster", "cabbage-cluster")
 my_hostname <- system("hostname", intern = TRUE)
 
+# Might as well do this replacement since it saves us some time routing.
 if (my_hostname %in% hostnames_arr) {
     hostnames_arr[hostnames_arr == my_hostname] <- "localhost"
 }
@@ -14,6 +16,10 @@ TIME <- 5
 
 for (process_n in 1:my_max_processes) {
     NUM_PROCESSES <- process_n
+
+    # We need to properly format the argument for mpiexec, since mpiexec expects
+    # the argument to be of the form:
+    # <host>:<process_num>(,<host>:<process_num>)*
     HOSTS <- ""
     for (host in hostnames_arr) {
         if (HOSTS == "") {
@@ -22,7 +28,10 @@ for (process_n in 1:my_max_processes) {
             HOSTS <- paste0(HOSTS, ",", host, ":", NUM_PROCESSES)
         }
     }
-    NUM_PRIMES <- strtoi(system(paste0("timeout -s 2 ", TIME, " mpiexec -host ", HOSTS, " ./primes-c/primes-mpi | wc -l")))
+    NUM_PRIMES <- strtoi(system(paste0("timeout -s 2 ", TIME,
+                                       " mpiexec -host ", HOSTS,
+                                       " ./primes-c/primes-mpi | wc -l"),
+                                intern = TRUE))
     df = rbind(df, data.frame("hosts"=HOSTS,
                               "time" = TIME,
                               "num_processes" = NUM_PROCESSES,
