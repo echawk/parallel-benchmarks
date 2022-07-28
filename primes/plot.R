@@ -14,7 +14,7 @@ my_max_processes <- strtoi(system("nproc", intern = TRUE))
 ## Time -> time in seconds the command will run
 ## Max_Processes -> the maximum number of processes for each host to use
 ## Hosts -> List of the hostnames to use
-make_output_csv <- function(Time, Max_Processes, Hosts) {
+make_output_csv <- function(Time, Max_Processes, Hosts, Cmd) {
     ## Create an empty dataframe to store all of the results in.
     df = data.frame("hosts"=c(),
                     "time"=c(),
@@ -33,14 +33,14 @@ make_output_csv <- function(Time, Max_Processes, Hosts) {
                 HOSTS <- paste0(HOSTS, ",", host, ":", NUM_PROCESSES)
             }
         }
-        NUM_PRIMES <- strtoi(system(paste0("timeout -s 2 ", Time,
+        NUM_OUTPUT <- strtoi(system(paste0("timeout -s 2 ", Time,
                                            " mpiexec -host ", HOSTS,
-                                           " ./primes-c/primes-mpi | wc -l"),
+                                           Cmd),
                                     intern = TRUE))
         df = rbind(df, data.frame("hosts"=HOSTS,
                                   "time" = Time,
                                   "num_processes" = NUM_PROCESSES,
-                                  "num_primes" = NUM_PRIMES))
+                                  YVar = NUM_OUTPUT))
     }
     outputcsv <- paste0("output", Time, "seconds.csv")
     write.csv(df, outputcsv)
@@ -50,7 +50,7 @@ make_output_csv <- function(Time, Max_Processes, Hosts) {
 times <- c(5, 10, 20, 40, 60, 120)
 for (TIME in times) {
     # Create the dataset.
-    data_csv <- make_output_csv(TIME, my_max_processes, hostnames_arr)
+    data_csv <- make_output_csv(TIME, my_max_processes, hostnames_arr, " ./primes-c/primes-mpi | wc -l")
     data <- read.csv(data_csv)
     # Ensure that we use the time that is marked in the dataset.
     time_ran = data[1, "time"]
@@ -60,14 +60,14 @@ for (TIME in times) {
         width = 800,
         height = 600)
     plot(x = data$num_processes,
-         y = data$num_primes,
+         y = data$YVar,
          xlab = "Number of Processes",
          ylab = "Number of Primes",
          main = paste0("Primes vs Processes (", time_ran, "s)"))
 
     ## Source: https://stats.stackexchange.com/questions/30975/how-to-add-non-linear-trend-line-to-a-scatter-plot-in-r
     ## Plot a best fit line, so we can easily compare the different images.
-    loess_fit <- loess(data$num_primes ~ data$num_processes, data)
+    loess_fit <- loess(data$YVar ~ data$num_processes, data)
     lines(data$num_processes, predict(loess_fit), col = "blue")
     dev.off()
 }
