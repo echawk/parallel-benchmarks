@@ -11,7 +11,14 @@ pow :: Integer -> Integer -> Integer
 pow n m = pow_iter n m 1
 
 pow_iter :: Integer -> Integer -> Integer -> Integer
-pow_iter n m acc = if m == 0 then acc else pow_iter n (m - 1) (acc * n)
+pow_iter n m acc =
+  if m == 0 then
+    acc
+  else
+    if m `mod` 2 == 0 then
+      pow_iter (n * n) (m `div` 2) (acc)
+    else
+      pow_iter n (m - 1) (acc * n)
 
 iter k =
   let numerator = toRational ((fact (6*k)) * (545140134*k + 13591409))
